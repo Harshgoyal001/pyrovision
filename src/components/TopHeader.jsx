@@ -1,8 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { Search, AlertTriangle, FileDown, Shield, Clock } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Search, AlertTriangle, FileDown, Shield, Clock, Loader2 } from 'lucide-react';
 
-const TopHeader = ({ anomalies, stats }) => {
+const TopHeader = ({ anomalies, stats, onSearchLocation, onSelectAnomaly }) => {
   const [time, setTime] = useState(new Date());
+  const [query, setQuery] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const debounceRef = useRef(null);
+  const wrapperRef = useRef(null);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -10,6 +16,92 @@ const TopHeader = ({ anomalies, stats }) => {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Two search modes based on what's typed:
+  // - Looks like an ID (letters/digits/dashes, e.g. "TH-3816", "3816", "th-3")
+  //   -> search hotspot IDs in the live anomalies list (instant, case-insensitive,
+  //   no network call).
+  // - Anything else (3+ chars) -> debounced place search via Nominatim.
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    const trimmed = query.trim();
+    const isIdLike = trimmed.length > 0 && /^[A-Za-z0-9-]+$/.test(trimmed) && /\d/.test(trimmed);
+
+    if (isIdLike) {
+      const needle = trimmed.toLowerCase();
+      const matches = (anomalies || [])
+        .filter((a) => String(a.id).toLowerCase().includes(needle))
+        .slice(0, 6)
+        .map((a) => ({ type: 'anomaly', anomaly: a }));
+      setSuggestions(matches);
+      setShowDropdown(matches.length > 0);
+      setSearching(false);
+      return;
+    }
+
+    if (trimmed.length < 3) {
+      setSuggestions([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+          trimmed
+        )}&limit=6&countrycodes=in`;
+        const res = await fetch(url);
+        const data = await res.json();
+        setSuggestions(data.map((place) => ({ type: 'place', place })));
+        setShowDropdown(true);
+      } catch (err) {
+        console.error('Location search failed:', err);
+        setSuggestions([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(debounceRef.current);
+  }, [query, anomalies]);
+
+  // Close dropdown when clicking outside the search box.
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSelect = (item) => {
+    if (item.type === 'anomaly') {
+      const a = item.anomaly;
+      setQuery(String(a.id));
+      setShowDropdown(false);
+      if (onSelectAnomaly) onSelectAnomaly(a);
+      if (onSearchLocation) {
+        onSearchLocation({ lat: a.latitude, lon: a.longitude, label: `#${a.id} ${a.name || a.category}` });
+      }
+      return;
+    }
+
+    // type === 'place'
+    const place = item.place;
+    setQuery(place.display_name.split(',')[0]);
+    setShowDropdown(false);
+    if (onSearchLocation) {
+      onSearchLocation({
+        lat: parseFloat(place.lat),
+        lon: parseFloat(place.lon),
+        label: place.display_name,
+      });
+    }
+  };
 
   const formatTime = (date) => {
     return date.toLocaleTimeString('en-GB', { hour12: false });
@@ -43,14 +135,61 @@ const TopHeader = ({ anomalies, stats }) => {
       </div>
 
       {/* 3. Search bar */}
-      <div className="flex items-center gap-1 border border-slate-700 rounded px-2 py-1 h-8 bg-slate-900/40">
-        <Search size={12} className="text-slate-400" />
-        <input 
-          type="text" 
-          placeholder="Se" 
-          className="bg-transparent border-none outline-none text-slate-300 w-12 text-[10px] placeholder:text-slate-600"
-        />
-        <span className="text-[8px] text-slate-500 bg-slate-800 px-1 rounded ml-1">[CTRL+K]</span>
+      <div ref={wrapperRef} className="relative">
+        <div className="flex items-center gap-1 border border-slate-700 rounded px-2 py-1 h-8 bg-slate-900/40 focus-within:border-cyan-500/50">
+          {searching ? (
+            <Loader2 size={12} className="text-cyan-400 animate-spin" />
+          ) : (
+            <Search size={12} className="text-slate-400" />
+          )}
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => suggestions.length > 0 && setShowDropdown(true)}
+            placeholder="Search location..."
+            className="bg-transparent border-none outline-none text-slate-300 w-32 text-[10px] placeholder:text-slate-600"
+          />
+          <span className="text-[8px] text-slate-500 bg-slate-800 px-1 rounded ml-1">[CTRL+K]</span>
+        </div>
+
+        {showDropdown && suggestions.length > 0 && (
+          <div className="absolute top-9 left-0 w-64 bg-[#0F172A] border border-slate-700 rounded shadow-lg z-[2000] max-h-64 overflow-y-auto">
+            {suggestions.map((item) => {
+              if (item.type === 'anomaly') {
+                const a = item.anomaly;
+                return (
+                  <button
+                    key={`a-${a.id}`}
+                    onClick={() => handleSelect(item)}
+                    className="w-full text-left px-2.5 py-1.5 text-[10px] text-slate-300 hover:bg-cyan-500/10 hover:text-cyan-300 border-b border-slate-800 last:border-b-0 flex items-center justify-between gap-2"
+                  >
+                    <span className="truncate">
+                      <span className="text-cyan-400 font-bold">#{a.id}</span> {a.name}
+                    </span>
+                    <span className="text-[8px] text-slate-500 uppercase shrink-0">{a.category || 'UNKNOWN'}</span>
+                  </button>
+                );
+              }
+              const place = item.place;
+              return (
+                <button
+                  key={place.place_id}
+                  onClick={() => handleSelect(item)}
+                  className="w-full text-left px-2.5 py-1.5 text-[10px] text-slate-300 hover:bg-cyan-500/10 hover:text-cyan-300 border-b border-slate-800 last:border-b-0 truncate"
+                >
+                  {place.display_name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {showDropdown && !searching && query.trim().length >= 3 && suggestions.length === 0 && (
+          <div className="absolute top-9 left-0 w-64 bg-[#0F172A] border border-slate-700 rounded shadow-lg z-[2000] px-2.5 py-1.5 text-[10px] text-slate-500">
+            No location found
+          </div>
+        )}
       </div>
 
       {/* 4. Security Banner */}

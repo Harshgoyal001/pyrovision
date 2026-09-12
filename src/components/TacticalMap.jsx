@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { MapContainer, TileLayer, CircleMarker, Marker, Popup, ZoomControl, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, WMSTileLayer, Circle, CircleMarker, Marker, Popup, ZoomControl, useMap } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -19,6 +19,11 @@ const TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Ima
 // Esri's free labels-only overlay — country/state/city names, transparent
 // background, drawn on top of the satellite imagery below.
 const LABELS_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}';
+
+// ESA WorldCover's real public WMS — free, keyless, official land-cover map
+// (forest/cropland/water/etc). Used for the "ESA WorldCover 10m" layer toggle.
+const WORLDCOVER_WMS_URL = 'https://services.terrascope.be/wms/v2';
+const WORLDCOVER_LAYER = 'WORLDCOVER_2021_MAP';
 
 const CATEGORY_COLORS = {
   'Wildfire Front': '#FF003C',
@@ -45,6 +50,37 @@ function FitBoundsOnData({ anomalies }) {
   }, [anomalies, map]);
 
   return null;
+}
+
+// Flies the map to a searched location (from TopHeader's search box) and
+// drops a temporary pin there.
+function FlyToSearchLocation({ searchLocation }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!searchLocation) return;
+    map.flyTo([searchLocation.lat, searchLocation.lon], 12, { duration: 1.2 });
+  }, [searchLocation, map]);
+
+  return null;
+}
+
+function searchPinIcon() {
+  return L.divIcon({
+    className: 'tactical-custom-icon',
+    html: `
+      <div style="
+        width:16px;height:16px;
+        border-radius:50% 50% 50% 0;
+        background:#00F0FF;
+        border:2px solid #0F172A;
+        box-shadow:0 0 10px #00F0FFcc;
+        transform:rotate(-45deg);
+      "></div>
+    `,
+    iconSize: [16, 16],
+    iconAnchor: [8, 16],
+  });
 }
 
 function MapLegend() {
@@ -147,7 +183,18 @@ function createClusterIcon(cluster) {
   });
 }
 
-export default function TacticalMap({ anomalies, selectedTarget, setSelectedTarget }) {
+export default function TacticalMap({ anomalies, selectedTarget, setSelectedTarget, searchLocation, layers = {} }) {
+  // Sensible defaults if a layer key isn't specified — everything visible
+  // except cloud mask (no real Sentinel-2 cloud data connected yet).
+  const showFirms = layers.firms !== false;
+  const showIndustrial = layers.industrial !== false;
+  const showRisk = layers.risk !== false;
+  const showWorldcover = Boolean(layers.worldcover);
+  const showBuffer = Boolean(layers.buffer);
+  // Note: cloudmask has no real effect yet — no free Sentinel-2 L2A cloud
+  // mask source is wired in. The checkbox toggles, but nothing changes on
+  // the map for it currently.
+
   const getMarkerColor = (anomaly) => {
     if (anomaly.category === 'Wildfire Front' || anomaly.frp_radiance > 2000) return '#FF003C';
     if (anomaly.category === 'Industrial Process') return '#F59E0B';
@@ -171,11 +218,15 @@ export default function TacticalMap({ anomalies, selectedTarget, setSelectedTarg
 
   const hasData = anomalies && anomalies.length > 0;
 
-  // Split into two groups: flame-icon anomalies get clustered (they were
-  // the ones overlapping and covering the map); plain dots (Industrial /
-  // Unclassified) are usually fewer and stay as simple circle markers.
-  const flameAnomalies = hasData ? anomalies.filter((a) => FLAME_IMAGES[a.category]) : [];
-  const dotAnomalies = hasData ? anomalies.filter((a) => !FLAME_IMAGES[a.category]) : [];
+  // Split into three groups: flame-icon anomalies get clustered (gated by
+  // the "FIRMS Thermal Hotspots" toggle); Industrial Process dots are gated
+  // by their own toggle; anything else (Unclassified) follows the FIRMS
+  // toggle since it's part of the same raw satellite feed.
+  const flameAnomalies = hasData && showFirms ? anomalies.filter((a) => FLAME_IMAGES[a.category]) : [];
+  const industrialAnomalies =
+    hasData && showIndustrial ? anomalies.filter((a) => a.category === 'Industrial Process') : [];
+  const unclassifiedAnomalies =
+    hasData && showFirms ? anomalies.filter((a) => !FLAME_IMAGES[a.category] && a.category !== 'Industrial Process') : [];
 
   const renderPopup = (anomaly, isCritical) => (
     <Popup className="tactical-popup font-mono text-[10px]">
@@ -206,6 +257,17 @@ export default function TacticalMap({ anomalies, selectedTarget, setSelectedTarg
         <ZoomControl position="bottomleft" />
 
         {hasData && <FitBoundsOnData anomalies={anomalies} />}
+        <FlyToSearchLocation searchLocation={searchLocation} />
+
+        {searchLocation && (
+          <Marker position={[searchLocation.lat, searchLocation.lon]} icon={searchPinIcon()}>
+            <Popup className="tactical-popup font-mono text-[10px]">
+              <div className="bg-[#0F172A] p-2 border border-slate-700 text-slate-300 max-w-[200px]">
+                {searchLocation.label}
+              </div>
+            </Popup>
+          </Marker>
+        )}
 
         {/* Clustered flame markers: wildfire, gas flare, crop burn */}
         <MarkerClusterGroup
@@ -218,23 +280,44 @@ export default function TacticalMap({ anomalies, selectedTarget, setSelectedTarg
           {flameAnomalies.map((anomaly) => {
             const isCritical = anomaly.frp_radiance > 2000;
             return (
-              <Marker
-                key={anomaly.id}
-                position={[anomaly.latitude, anomaly.longitude]}
-                icon={buildFlameIcon(anomaly, getGlowClass(anomaly), getMarkerColor(anomaly))}
-                eventHandlers={{ click: () => setSelectedTarget(anomaly) }}
-                // Read by createClusterIcon to tint the cluster bubble red
-                // if any hotspot inside it is critical severity.
-                __isCritical={isCritical}
-              >
-                {renderPopup(anomaly, isCritical)}
-              </Marker>
+              <React.Fragment key={anomaly.id}>
+                {/* Priority Risk Shading: extra pulsing red ring on critical
+                    hotspots, only drawn when this layer is engaged. */}
+                {isCritical && showRisk && (
+                  <CircleMarker
+                    center={[anomaly.latitude, anomaly.longitude]}
+                    radius={26}
+                    pathOptions={{ color: '#FF003C', fillColor: '#FF003C', fillOpacity: 0.12, weight: 1.5, dashArray: '3,4' }}
+                  />
+                )}
+                <Marker
+                  position={[anomaly.latitude, anomaly.longitude]}
+                  icon={buildFlameIcon(anomaly, getGlowClass(anomaly), getMarkerColor(anomaly))}
+                  eventHandlers={{ click: () => setSelectedTarget(anomaly) }}
+                  // Read by createClusterIcon to tint the cluster bubble red
+                  // if any hotspot inside it is critical severity.
+                  __isCritical={isCritical}
+                >
+                  {renderPopup(anomaly, isCritical)}
+                </Marker>
+              </React.Fragment>
             );
           })}
         </MarkerClusterGroup>
 
-        {/* Industrial Process / Unclassified — plain colored dots, not clustered */}
-        {dotAnomalies.map((anomaly) => (
+        {/* ESA WorldCover 10m — real land-cover WMS overlay */}
+        {showWorldcover && (
+          <WMSTileLayer
+            url={WORLDCOVER_WMS_URL}
+            layers={WORLDCOVER_LAYER}
+            format="image/png"
+            transparent
+            opacity={0.5}
+          />
+        )}
+
+        {/* Industrial Process — plain amber dots, gated by its own toggle */}
+        {industrialAnomalies.map((anomaly) => (
           <CircleMarker
             key={anomaly.id}
             center={[anomaly.latitude, anomaly.longitude]}
@@ -250,6 +333,39 @@ export default function TacticalMap({ anomalies, selectedTarget, setSelectedTarg
             {renderPopup(anomaly, false)}
           </CircleMarker>
         ))}
+
+        {/* Unclassified — plain grey dots, follows the FIRMS toggle */}
+        {unclassifiedAnomalies.map((anomaly) => (
+          <CircleMarker
+            key={anomaly.id}
+            center={[anomaly.latitude, anomaly.longitude]}
+            radius={getMarkerRadius(anomaly)}
+            pathOptions={{
+              color: getMarkerColor(anomaly),
+              fillColor: getMarkerColor(anomaly),
+              fillOpacity: 0.4,
+              weight: 2,
+            }}
+            eventHandlers={{ click: () => setSelectedTarget(anomaly) }}
+          >
+            {renderPopup(anomaly, false)}
+          </CircleMarker>
+        ))}
+
+        {/* Population Density Buffer — 5km radius warning ring around every
+            critical hotspot, only drawn when this layer is engaged. */}
+        {showBuffer &&
+          hasData &&
+          anomalies
+            .filter((a) => a.frp_radiance > 2000)
+            .map((a) => (
+              <Circle
+                key={`buffer-${a.id}`}
+                center={[a.latitude, a.longitude]}
+                radius={5000}
+                pathOptions={{ color: '#F59E0B', fillColor: '#F59E0B', fillOpacity: 0.06, weight: 1, dashArray: '6,6' }}
+              />
+            ))}
 
         {/* Selected target highlight */}
         {selectedTarget && (

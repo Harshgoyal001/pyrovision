@@ -2,7 +2,7 @@ import React from 'react';
 import TacticalMap from './TacticalMap';
 import DossierPanel from './DossierPanel';
 
-export default function MapView({ anomalies, selectedTarget, setSelectedTarget, stats }) {
+export default function MapView({ anomalies, selectedTarget, setSelectedTarget, stats, searchLocation, layers, toggleLayer }) {
   return (
     <div className="flex h-full w-full overflow-hidden bg-[#070A0F] font-mono">
       {/* Left side: Info bar + Map */}
@@ -26,7 +26,9 @@ export default function MapView({ anomalies, selectedTarget, setSelectedTarget, 
           <TacticalMap 
             anomalies={anomalies} 
             selectedTarget={selectedTarget} 
-            setSelectedTarget={setSelectedTarget} 
+            setSelectedTarget={setSelectedTarget}
+            searchLocation={searchLocation}
+            layers={layers}
           />
         </div>
       </div>
@@ -36,7 +38,9 @@ export default function MapView({ anomalies, selectedTarget, setSelectedTarget, 
         anomalies={anomalies} 
         selectedTarget={selectedTarget} 
         setSelectedTarget={setSelectedTarget} 
-        stats={stats} 
+        stats={stats}
+        layers={layers}
+        toggleLayer={toggleLayer}
       />
     </div>
   );

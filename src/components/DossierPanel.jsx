@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { AlertTriangle, Download, Crosshair, CheckSquare, Square } from 'lucide-react';
 
-export default function DossierPanel({ anomalies = [], selectedTarget, setSelectedTarget, stats = {} }) {
+export default function DossierPanel({ anomalies = [], selectedTarget, setSelectedTarget, stats = {}, layers = {}, toggleLayer = () => {} }) {
   const totalCount = stats.total || anomalies.length || 0;
   const categories = stats.categories || {};
 
@@ -17,19 +17,7 @@ export default function DossierPanel({ anomalies = [], selectedTarget, setSelect
   const wildfirePct = totalCount ? ((wildfireCount / totalCount) * 100).toFixed(1) : '0.0';
   const cropPct = totalCount ? ((cropCount / totalCount) * 100).toFixed(1) : '0.0';
 
-  const [layers, setLayers] = useState({
-    firms: true,
-    industrial: true,
-    risk: true,
-    worldcover: true,
-    buffer: true,
-    cloudmask: false
-  });
   const [taskingEngaged, setTaskingEngaged] = useState(false);
-
-  const toggleLayer = (key) => {
-    setLayers(prev => ({ ...prev, [key]: !prev[key] }));
-  };
 
   const engagedCount = Object.values(layers).filter(Boolean).length;
 
