@@ -26,13 +26,22 @@ export default function App() {
     cloudmask: false,
   });
   const toggleLayer = (key) => setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
-  const { anomalies, selectedTarget, setSelectedTarget, loading, stats } = useThermalAnomalies();
+  const { anomalies, selectedTarget, setSelectedTarget, loading, error, lastFetchedAt, realtimeStatus, stats } = useThermalAnomalies();
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-[#070A0F] text-slate-200 font-mono flex flex-col">
       <TopHeader anomalies={anomalies} stats={stats} onSearchLocation={setSearchLocation} onSelectAnomaly={setSelectedTarget} />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} stats={stats} />
+        <Sidebar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          stats={stats}
+          loading={loading}
+          error={error}
+          lastFetchedAt={lastFetchedAt}
+          realtimeStatus={realtimeStatus}
+          layers={layers}
+        />
         <main className="flex-1 overflow-hidden">
           {activeTab === 'map' && (
             <MapView

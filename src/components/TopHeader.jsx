@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, AlertTriangle, FileDown, Shield, Clock, Loader2 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const TopHeader = ({ anomalies, stats, onSearchLocation, onSelectAnomaly }) => {
   const [time, setTime] = useState(new Date());
@@ -111,6 +113,82 @@ const TopHeader = ({ anomalies, stats, onSearchLocation, onSelectAnomaly }) => {
     return date.toISOString().substring(11, 19);
   };
 
+  // Real critical count from stats (no more hardcoded "1 ALERT").
+  const criticalCount = stats?.criticalCount || 0;
+  const hasCritical = criticalCount > 0;
+
+  // Clicking the Early Warning button jumps the map to the single most
+  // severe active hotspot (highest FRP among critical ones).
+  const handleEarlyWarningClick = () => {
+    if (!hasCritical || !anomalies || anomalies.length === 0) return;
+    const critical = anomalies
+      .filter((a) => a.frp_radiance > 2000 || a.severity_status?.includes('CRITICAL'))
+      .sort((a, b) => (b.frp_radiance || 0) - (a.frp_radiance || 0));
+    const top = critical[0];
+    if (!top) return;
+    if (onSelectAnomaly) onSelectAnomaly(top);
+    if (onSearchLocation) {
+      onSearchLocation({ lat: top.latitude, lon: top.longitude, label: `#${top.id} ${top.name}` });
+    }
+  };
+
+  // Generates a real downloadable PDF intel report from the live anomalies
+  // data — summary stats + a table of every hotspot, sorted by severity.
+  const handleExportPDF = () => {
+    const doc = new jsPDF();
+    const now = new Date();
+
+    doc.setFontSize(16);
+    doc.setTextColor(20, 20, 20);
+    doc.text('PYROVISION — EARLY WARNING INTELLIGENCE REPORT', 14, 16);
+
+    doc.setFontSize(9);
+    doc.setTextColor(120, 60, 0);
+    doc.text('TOP SECRET // RESTRICTED - FOR INDIAN EYES ONLY // GOI-INTERNAL', 14, 22);
+
+    doc.setFontSize(9);
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Generated: ${now.toLocaleString('en-GB')}`, 14, 29);
+
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.text(
+      `Total Active Hotspots: ${stats?.total || 0}    |    Critical (FRP > 2000 MW): ${criticalCount}    |    Industrial: ${stats?.industrialCount || 0}`,
+      14,
+      37
+    );
+
+    const rows = (anomalies || [])
+      .slice()
+      .sort((a, b) => (b.frp_radiance || 0) - (a.frp_radiance || 0))
+      .slice(0, 200) // cap so the PDF doesn't get enormous on very large datasets
+      .map((a) => [
+        a.id,
+        a.name,
+        a.category || 'Unknown',
+        a.latitude?.toFixed(3),
+        a.longitude?.toFixed(3),
+        a.frp_radiance,
+        a.severity_status || '',
+      ]);
+
+    autoTable(doc, {
+      startY: 43,
+      head: [['ID', 'Name', 'Category', 'Lat', 'Lon', 'FRP (MW)', 'Severity']],
+      body: rows,
+      styles: { fontSize: 7 },
+      headStyles: { fillColor: [15, 23, 42] },
+      didParseCell: (data) => {
+        if (data.section === 'body' && data.column.index === 6) {
+          const val = String(data.cell.raw || '');
+          if (val.includes('CRITICAL')) data.cell.styles.textColor = [200, 0, 40];
+        }
+      },
+    });
+
+    doc.save(`PYROVISION_INTEL_REPORT_${now.toISOString().slice(0, 10)}.pdf`);
+  };
+
   return (
     <header className="w-full h-[52px] bg-[#070A0F] border-b border-cyan-500/10 flex items-center px-3 gap-3 text-[10px] tracking-wide font-mono shrink-0 select-none">
       {/* 1. PYROVISION Logo block */}
@@ -200,14 +278,29 @@ const TopHeader = ({ anomalies, stats, onSearchLocation, onSelectAnomaly }) => {
       </div>
 
       {/* 5. Early Warning Button */}
-      <div className="border border-red-500/50 rounded px-3 py-1.5 cursor-pointer animate-blink-alert flex items-center gap-1.5 h-8 bg-red-950/20 hover:bg-red-900/40 transition-colors">
-        <AlertTriangle size={14} className="text-red-400" />
-        <span className="text-red-400 font-semibold uppercase">EARLY WARNING REPORT</span>
-        <span className="text-red-300 ml-1 font-semibold uppercase">(1 ALERT)</span>
+      <div
+        onClick={handleEarlyWarningClick}
+        className={`border rounded px-3 py-1.5 flex items-center gap-1.5 h-8 transition-colors ${
+          hasCritical
+            ? 'border-red-500/50 bg-red-950/20 hover:bg-red-900/40 cursor-pointer animate-blink-alert'
+            : 'border-slate-700 bg-slate-900/20 opacity-50 cursor-not-allowed'
+        }`}
+      >
+        <AlertTriangle size={14} className={hasCritical ? 'text-red-400' : 'text-slate-500'} />
+        <span className={`font-semibold uppercase ${hasCritical ? 'text-red-400' : 'text-slate-500'}`}>
+          EARLY WARNING REPORT
+        </span>
+        <span className={`ml-1 font-semibold uppercase ${hasCritical ? 'text-red-300' : 'text-slate-500'}`}>
+          ({criticalCount} ALERT{criticalCount === 1 ? '' : 'S'})
+        </span>
       </div>
 
       {/* 6. Export Button */}
-      <button className="tactical-btn flex items-center justify-center gap-1.5 h-8 px-3">
+      <button
+        onClick={handleExportPDF}
+        disabled={!anomalies || anomalies.length === 0}
+        className="tactical-btn flex items-center justify-center gap-1.5 h-8 px-3 disabled:opacity-40 disabled:cursor-not-allowed"
+      >
         <FileDown size={14} />
         <span className="uppercase">EXPORT INTEL PDF</span>
       </button>

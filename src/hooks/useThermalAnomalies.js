@@ -150,25 +150,32 @@ export function useThermalAnomalies() {
   const [anomalies, setAnomalies] = useState([])
   const [selectedTarget, setSelectedTarget] = useState(null)
   const [loading, setLoading] = useState(true)
+  // NEW: surfaced so the UI (Sensor Ingestion Matrix) can show real
+  // connection health instead of hardcoded "LIVE" labels.
+  const [error, setError] = useState(null)
+  const [lastFetchedAt, setLastFetchedAt] = useState(null)
+  const [realtimeStatus, setRealtimeStatus] = useState('CONNECTING')
   const channelRef = useRef(null)
 
   const fetchAnomalies = useCallback(async () => {
     if (!supabase) {
       setLoading(false)
+      setError('Supabase client not configured')
       return
     }
 
     try {
       setLoading(true)
+      setError(null)
       // 1. Fetch 100% real data from Supabase `thermal_sites` table
-      let { data, error } = await supabase
+      let { data, error: fetchError } = await supabase
         .from('thermal_sites')
         .select('*')
         .order('total_detections', { ascending: false })
         .limit(1000)
 
       // 2. Fallback to `thermal_anomalies` if `thermal_sites` does not exist
-      if (error) {
+      if (fetchError) {
         const fallbackRes = await supabase
           .from('thermal_anomalies')
           .select('*')
@@ -177,25 +184,29 @@ export function useThermalAnomalies() {
         
         if (!fallbackRes.error && fallbackRes.data) {
           data = fallbackRes.data
-          error = null
+          fetchError = null
         }
       }
 
-      if (error) {
-        console.error('Supabase query error:', error.message)
+      if (fetchError) {
+        console.error('Supabase query error:', fetchError.message)
+        setError(fetchError.message)
         setAnomalies([])
         setSelectedTarget(null)
       } else if (data && data.length > 0) {
         const normalized = data.map(normalizeAnomaly)
         setAnomalies(normalized)
+        setLastFetchedAt(new Date())
         // Select the highest priority or first target
         setSelectedTarget(normalized[0])
       } else {
         setAnomalies([])
         setSelectedTarget(null)
+        setLastFetchedAt(new Date())
       }
     } catch (err) {
       console.error('Fetch failed:', err)
+      setError(err.message || 'Unknown fetch error')
       setAnomalies([])
       setSelectedTarget(null)
     } finally {
@@ -221,9 +232,14 @@ export function useThermalAnomalies() {
         { event: '*', schema: 'public', table: 'thermal_anomalies' },
         (payload) => handleRealtime(payload)
       )
-      .subscribe()
+      // NEW: track the actual WebSocket subscription state so the UI can
+      // show real "LIVE" / "CONNECTING" / "CLOSED" status.
+      .subscribe((status) => {
+        setRealtimeStatus(status)
+      })
 
     function handleRealtime(payload) {
+      setLastFetchedAt(new Date())
       switch (payload.eventType) {
         case 'INSERT': {
           const item = normalizeAnomaly(payload.new)
@@ -267,6 +283,9 @@ export function useThermalAnomalies() {
     selectedTarget,
     setSelectedTarget,
     loading,
+    error,
+    lastFetchedAt,
+    realtimeStatus,
     stats,
     refetch: fetchAnomalies,
   }
