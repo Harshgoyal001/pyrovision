@@ -270,12 +270,8 @@ const TopHeader = ({ anomalies, stats, onSearchLocation, onSelectAnomaly }) => {
         )}
       </div>
 
-      {/* 4. Security Banner */}
-      <div className="flex-1 border border-amber-500/40 rounded px-4 py-1.5 flex items-center justify-center h-8 bg-amber-500/5">
-        <span className="text-amber-400 font-semibold text-[10px] tracking-wider uppercase">
-          TOP SECRET // RESTRICTED - FOR INDIAN EYES ONLY // GOI-INTERNAL
-        </span>
-      </div>
+      {/* Spacer — keeps the right-side buttons pushed to the edge */}
+      <div className="flex-1" />
 
       {/* 5. Early Warning Button */}
       <div

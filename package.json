@@ -16,10 +16,13 @@
     "leaflet": "^1.9.4",
     "leaflet.markercluster": "^1.5.3",
     "lucide-react": "^1.44.0",
+    "maplibre-gl": "^6.9.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "react-globe.gl": "^2.38.0",
     "react-leaflet": "^5.0.0",
-    "react-leaflet-cluster": "^4.1.3"
+    "react-leaflet-cluster": "^4.1.3",
+    "supercluster": "^9.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
