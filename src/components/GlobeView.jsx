@@ -42,7 +42,7 @@ function getIconSizePx(frp) {
   return 18;
 }
 
-export default function GlobeView({ anomalies = [], selectedTarget, setSelectedTarget, searchLocation, layers = {} }) {
+export default function GlobeView({ anomalies = [], selectedTarget, setSelectedTarget, searchLocation, layers = {}, onMouseMove }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef([]);
@@ -136,6 +136,30 @@ export default function GlobeView({ anomalies = [], selectedTarget, setSelectedT
     };
   }, []);
 
+  // Track live mouse cursor coordinates across the 3D globe
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded || !onMouseMove) return;
+
+    const handleMove = (e) => {
+      if (e?.lngLat) {
+        onMouseMove({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+      }
+    };
+
+    const handleOut = () => {
+      onMouseMove(null);
+    };
+
+    map.on('mousemove', handleMove);
+    map.on('mouseout', handleOut);
+
+    return () => {
+      map.off('mousemove', handleMove);
+      map.off('mouseout', handleOut);
+    };
+  }, [mapLoaded, onMouseMove]);
+
   // 2. Build Supercluster index whenever visible anomalies change
   useEffect(() => {
     const points = [];
@@ -224,9 +248,19 @@ export default function GlobeView({ anomalies = [], selectedTarget, setSelectedT
           el.firstElementChild.style.transform = 'scale(1)';
         });
 
-        // Click to expand cluster
+        // Click to expand cluster & immediately select top hotspot
         el.addEventListener('click', (e) => {
           e.stopPropagation();
+          try {
+            const leaves = index.getLeaves(clusterId, 10);
+            if (leaves && leaves.length > 0) {
+              const sorted = [...leaves].sort(
+                (x, y) => (Number(y.properties.frp_radiance) || 0) - (Number(x.properties.frp_radiance) || 0)
+              );
+              setSelectedTarget(sorted[0].properties);
+            }
+          } catch (_) {}
+
           try {
             const nextZoom = Math.min(index.getClusterExpansionZoom(clusterId), 16);
             map.flyTo({
@@ -272,6 +306,7 @@ export default function GlobeView({ anomalies = [], selectedTarget, setSelectedT
           outer.style.height = `${outerSize}px`;
           outer.style.cursor = 'pointer';
           outer.style.display = 'block';
+          outer.style.zIndex = '15';
 
           outer.innerHTML = `
             <div style="position:relative;width:100%;height:100%;pointer-events:none;">
@@ -289,6 +324,7 @@ export default function GlobeView({ anomalies = [], selectedTarget, setSelectedT
           outer.style.height = `${dotRadius * 2}px`;
           outer.style.cursor = 'pointer';
           outer.style.display = 'block';
+          outer.style.zIndex = '15';
 
           outer.innerHTML = `
             <div style="width:100%;height:100%;border-radius:50%;background:${color};box-shadow:0 0 ${isCritical ? 12 : 6}px 2px ${color}cc;border:1.5px solid #0F172A;pointer-events:none;"></div>
@@ -302,13 +338,13 @@ export default function GlobeView({ anomalies = [], selectedTarget, setSelectedT
           outer.style.transform = outer.style.transform.replace(' scale(1.35)', '');
         });
 
-        // Tactical Popup
+        // Tactical Popup (pointer-events: none so clicks go through to outer)
         const popup = new maplibregl.Popup({
           closeButton: false,
           offset: popupOffset,
           className: 'pyro-globe-popup',
         }).setHTML(`
-          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;background:#0F172A;border:1px solid #334155;padding:8px 10px;border-radius:4px;color:#CBD5E1;min-width:180px;box-shadow:0 4px 16px rgba(0,0,0,0.7)">
+          <div style="pointer-events:none;font-family:'IBM Plex Mono',monospace;font-size:10px;background:#0F172A;border:1px solid #334155;padding:8px 10px;border-radius:4px;color:#CBD5E1;min-width:180px;box-shadow:0 4px 16px rgba(0,0,0,0.7)">
             <div style="font-weight:700;color:#FFFFFF;margin-bottom:4px">#${a.id} ${a.name || ''}</div>
             ${
               isCritical
@@ -323,14 +359,15 @@ export default function GlobeView({ anomalies = [], selectedTarget, setSelectedT
         outer.addEventListener('mouseenter', () => popup.addTo(map));
         outer.addEventListener('mouseleave', () => popup.remove());
 
-        // Click to select & flyTo
+        // Click to select hotspot & flyTo
         outer.addEventListener('click', (e) => {
           e.stopPropagation();
+          e.preventDefault();
           setSelectedTarget(a);
           map.flyTo({
             center: [lng, lat],
             zoom: Math.max(map.getZoom(), 7.5),
-            duration: 900,
+            duration: 800,
             essential: true,
           });
         });

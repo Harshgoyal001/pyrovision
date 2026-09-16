@@ -1,14 +1,31 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Map, 
   BarChart3, 
   Layers, 
   Crosshair, 
   GitBranch, 
-  Shield 
+  Shield,
+  ChevronDown,
+  Check
 } from 'lucide-react';
 
 const Sidebar = ({ activeTab, setActiveTab, stats, loading, error, lastFetchedAt, realtimeStatus, layers = {} }) => {
+  // Dropdown state for navigation menu
+  const [isNavOpen, setIsNavOpen] = useState(false);
+  const navDropdownRef = useRef(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (navDropdownRef.current && !navDropdownRef.current.contains(e.target)) {
+        setIsNavOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Ticking "time ago" clock so the last-updated label stays fresh without
   // needing a new fetch — re-renders every 5s.
   const [, forceTick] = useState(0);
@@ -63,6 +80,9 @@ const Sidebar = ({ activeTab, setActiveTab, stats, loading, error, lastFetchedAt
     { id: 'pipeline', icon: GitBranch, label: 'PIPELINE INFO', desc: 'INGEST DAEMONS & ETL QUEUES', badge: null },
   ];
 
+  const currentTab = tabs.find((t) => t.id === activeTab) || tabs[0];
+  const CurrentIcon = currentTab.icon;
+
   return (
     <div className="w-[260px] min-w-[260px] h-full bg-[#070A0F] border-r border-cyan-500/10 flex flex-col overflow-y-auto font-mono">
       {/* 1. Header Block */}
@@ -80,42 +100,97 @@ const Sidebar = ({ activeTab, setActiveTab, stats, loading, error, lastFetchedAt
         </div>
       </div>
 
-      {/* 2. Navigation Tabs */}
-      <div className="p-2 space-y-1">
-        {tabs.map((tab) => {
-          const isActive = activeTab === tab.id;
-          const Icon = tab.icon;
-          
-          let badgeClass = "";
-          if (tab.badgeColor === 'green') badgeClass = "bg-green-500/20 text-green-400 border border-green-500/30";
-          else if (tab.badgeColor === 'cyan') badgeClass = "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30";
-          else if (tab.badgeColor === 'slate') badgeClass = "bg-slate-700 text-slate-300 border border-slate-600";
+      {/* 2. Navigation Module Dropdown Menu */}
+      <div className="p-2.5 relative" ref={navDropdownRef}>
+        <div className="flex items-center justify-between mb-1.5 px-0.5">
+          <span className="text-[9px] text-slate-400 tracking-wider">VIEW SELECTOR</span>
+          <span className="text-[8px] text-cyan-400/80 uppercase font-mono">MODULE NAV</span>
+        </div>
 
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-3 w-full px-3 py-2.5 rounded text-left transition-colors ${
-                isActive 
-                  ? "bg-slate-800/80 border-l-2 border-cyan-400" 
-                  : "hover:bg-slate-800/40 border-l-2 border-transparent"
-              }`}
-            >
-              <Icon className={`w-4 h-4 shrink-0 ${isActive ? "text-cyan-400" : "text-slate-500"}`} />
-              <div className="flex-1 min-w-0">
-                <div className={`text-[11px] font-semibold truncate ${isActive ? "text-cyan-400" : "text-slate-300"}`}>
-                  {tab.label}
-                </div>
-                <div className="text-[8px] text-slate-500 truncate">{tab.desc}</div>
-              </div>
-              {tab.badge && (
-                <div className={`text-[8px] px-1.5 py-0.5 rounded whitespace-nowrap ${badgeClass}`}>
-                  {tab.badge}
-                </div>
+        {/* Dropdown Trigger Button */}
+        <button
+          type="button"
+          onClick={() => setIsNavOpen((prev) => !prev)}
+          className={`w-full flex items-center gap-2.5 p-2.5 rounded bg-[#0F172A] border transition-all text-left ${
+            isNavOpen
+              ? 'border-cyan-400 shadow-[0_0_12px_rgba(0,240,255,0.2)]'
+              : 'border-cyan-500/30 hover:border-cyan-400/60 hover:bg-slate-800/60'
+          }`}
+          title="Click to switch view module"
+        >
+          <div className="w-7 h-7 rounded bg-cyan-950/50 border border-cyan-500/30 flex items-center justify-center shrink-0">
+            <CurrentIcon className="w-4 h-4 text-cyan-400" />
+          </div>
+          
+          <div className="flex-1 min-w-0">
+            <div className="text-[11px] font-bold text-cyan-400 truncate flex items-center gap-1.5">
+              <span>{currentTab.label}</span>
+              {currentTab.badge && (
+                <span className={`text-[7.5px] px-1 py-0.2 rounded leading-tight ${
+                  currentTab.badgeColor === 'green' ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
+                  currentTab.badgeColor === 'cyan' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' :
+                  'bg-slate-700 text-slate-300 border border-slate-600'
+                }`}>
+                  {currentTab.badge}
+                </span>
               )}
-            </button>
-          );
-        })}
+            </div>
+            <div className="text-[8px] text-slate-400 truncate">{currentTab.desc}</div>
+          </div>
+
+          <ChevronDown
+            className={`w-4 h-4 text-cyan-400 shrink-0 transition-transform duration-200 ${
+              isNavOpen ? 'rotate-180 text-cyan-300' : ''
+            }`}
+          />
+        </button>
+
+        {/* Dropdown Menu Options */}
+        {isNavOpen && (
+          <div className="mt-1.5 space-y-1 bg-[#0B111E] border border-cyan-500/30 rounded p-1.5 shadow-2xl shadow-black/80 z-20">
+            {tabs.map((tab) => {
+              const isActive = activeTab === tab.id;
+              const Icon = tab.icon;
+
+              let badgeClass = '';
+              if (tab.badgeColor === 'green') badgeClass = 'bg-green-500/20 text-green-400 border border-green-500/30';
+              else if (tab.badgeColor === 'cyan') badgeClass = 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30';
+              else if (tab.badgeColor === 'slate') badgeClass = 'bg-slate-700 text-slate-300 border border-slate-600';
+
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setIsNavOpen(false);
+                  }}
+                  className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded text-left transition-all ${
+                    isActive
+                      ? 'bg-cyan-500/15 border-l-2 border-cyan-400 text-cyan-400'
+                      : 'hover:bg-slate-800/60 border-l-2 border-transparent text-slate-300 hover:text-white'
+                  }`}
+                >
+                  <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-cyan-400' : 'text-slate-500'}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-[10px] font-semibold truncate ${isActive ? 'text-cyan-400 font-bold' : 'text-slate-200'}`}>
+                      {tab.label}
+                    </div>
+                    <div className="text-[7.5px] text-slate-500 truncate">{tab.desc}</div>
+                  </div>
+                  {tab.badge && (
+                    <div className={`text-[7.5px] px-1 py-0.2 rounded whitespace-nowrap ${badgeClass}`}>
+                      {tab.badge}
+                    </div>
+                  )}
+                  {isActive && (
+                    <Check className="w-3 h-3 text-cyan-400 shrink-0 ml-1" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* 3. Tactical Threat Tiers */}
@@ -149,7 +224,6 @@ const Sidebar = ({ activeTab, setActiveTab, stats, loading, error, lastFetchedAt
             <div className="text-[10px] text-[#22C55E] font-bold font-mono">{stats?.forestBreachCount || 0} FLAGS</div>
           </div>
         </div>
-
       </div>
 
       {/* 4. Sensor Ingestion Matrix */}

@@ -1,7 +1,7 @@
 import React from 'react';
 import { RefreshCw, Filter, Download, Columns, Flame, MapPin } from 'lucide-react';
 
-export default function StatisticsView({ anomalies = [], stats = {} }) {
+export default function StatisticsView({ anomalies = [], stats = {}, setSelectedTarget, setActiveTab }) {
   const getCategoryColor = (category) => {
     switch(category?.toUpperCase()) {
       case 'CRITICAL': return 'bg-red-500';
@@ -194,23 +194,35 @@ export default function StatisticsView({ anomalies = [], stats = {} }) {
               </tr>
             </thead>
             <tbody>
-              {anomalies.length > 0 ? anomalies.map((anomaly, index) => (
-                <tr key={anomaly.id || index} className={`border-b border-slate-800/50 hover:bg-slate-800/40 ${index % 2 !== 0 ? 'bg-slate-800/20' : ''}`}>
-                  <td className="p-2 flex items-center gap-2">
-                    <div className={`w-1.5 h-1.5 rounded-full ${getCategoryColor(anomaly.category)}`}></div>
-                    <span className="font-bold text-cyan-400 uppercase">#{anomaly.id || `TGT-${900+index}`}</span>
-                  </td>
-                  <td className="p-2 text-slate-200 uppercase">{anomaly.name || 'UNKNOWN ZONE'}</td>
-                  <td className="p-2 text-slate-400 font-mono">
-                    {anomaly.lat && anomaly.lon ? formatCoord(anomaly.lat, anomaly.lon) : "21°46'30\"N, 85°08'12\"E"}
-                  </td>
-                  <td className="p-2">
-                    <span className={`px-2 py-0.5 rounded border text-[8px] uppercase ${getCategoryBadgeColor(anomaly.category)}`}>
-                      {anomaly.category || 'UNKNOWN'}
-                    </span>
-                  </td>
-                </tr>
-              )) : (
+              {anomalies.length > 0 ? anomalies.map((anomaly, index) => {
+                const lat = anomaly.latitude ?? anomaly.lat ?? 0;
+                const lon = anomaly.longitude ?? anomaly.lon ?? 0;
+                return (
+                  <tr 
+                    key={anomaly.id || index} 
+                    onClick={() => {
+                      if (setSelectedTarget) setSelectedTarget(anomaly);
+                      if (setActiveTab) setActiveTab('map');
+                    }}
+                    title={`Click to inspect #${anomaly.id} on Map & Dossier`}
+                    className={`border-b border-slate-800/50 hover:bg-cyan-950/40 cursor-pointer transition-colors ${index % 2 !== 0 ? 'bg-slate-800/20' : ''}`}
+                  >
+                    <td className="p-2 flex items-center gap-2">
+                      <div className={`w-1.5 h-1.5 rounded-full ${getCategoryColor(anomaly.category)}`}></div>
+                      <span className="font-bold text-cyan-400 uppercase">#{anomaly.id || `TGT-${900+index}`}</span>
+                    </td>
+                    <td className="p-2 text-slate-200 uppercase">{anomaly.name || 'UNKNOWN ZONE'}</td>
+                    <td className="p-2 text-slate-400 font-mono">
+                      {lat && lon ? formatCoord(lat, lon) : "21°46'30\"N, 85°08'12\"E"}
+                    </td>
+                    <td className="p-2">
+                      <span className={`px-2 py-0.5 rounded border text-[8px] uppercase ${getCategoryBadgeColor(anomaly.category)}`}>
+                        {anomaly.category || 'UNKNOWN'}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              }) : (
                 <tr className="border-b border-slate-800/50 hover:bg-slate-800/40 bg-slate-800/20">
                   <td className="p-2 flex items-center gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>

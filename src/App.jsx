@@ -7,7 +7,6 @@ import StatisticsView from './components/StatisticsView';
 import LayersView from './components/LayersView';
 import ThermalHuntView from './components/ThermalHuntView';
 import { useThermalAnomalies } from './hooks/useThermalAnomalies';
-
 const PipelineInfo = () => (
   <div className="flex h-full w-full items-center justify-center bg-[#070A0F] text-slate-400">
     <p>PIPELINE DATA UNAVAILABLE</p>

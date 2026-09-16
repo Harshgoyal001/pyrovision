@@ -13,17 +13,25 @@ function normalizeAnomaly(row) {
     ? rawName 
     : (row.has_facility ? `Industrial Facility #${id}` : `Thermal Anomaly #${id}`)
 
-  const lat = Number(row.lat_rounded ?? row.latitude ?? row.lat ?? 0)
-  const lon = Number(row.long_rounded ?? row.longitude ?? row.lon ?? row.lng ?? 0)
+  const lat = Number(row.latitude ?? row.lat ?? row.lat_rounded ?? 0)
+  const lon = Number(row.longitude ?? row.lon ?? row.lng ?? row.long_rounded ?? 0)
   const detections = Number(row.total_detections ?? 1)
   const days = Number(row.days_active ?? 1)
   const hasFacility = Boolean(row.has_facility)
 
   // Determine category directly from Supabase fields
+// Determine category directly from Supabase fields
   let category = row.category
+  const finalClass = String(row.final_classification || '').trim().toLowerCase()
   const prediction = String(row.ai_prediction || '').trim().toLowerCase()
   if (!category) {
-    if (prediction === 'wildfire') {
+    if (finalClass === 'wildfire') {
+      category = 'Wildfire Front'
+    } else if (finalClass === 'gas flare') {
+      category = 'Gas Flare'
+    } else if (finalClass === 'crop residue burning') {
+      category = 'Crop Residue Burning'
+    } else if (prediction === 'wildfire') {
       category = 'Wildfire Front'
     } else if (prediction === 'gas flare') {
       category = 'Gas Flare'

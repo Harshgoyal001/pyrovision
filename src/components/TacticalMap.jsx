@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { MapContainer, TileLayer, WMSTileLayer, Circle, CircleMarker, Marker, Popup, ZoomControl, useMap } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
+import { Crosshair } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
@@ -61,6 +62,35 @@ function FlyToSearchLocation({ searchLocation }) {
     if (!searchLocation) return;
     map.flyTo([searchLocation.lat, searchLocation.lon], 12, { duration: 1.2 });
   }, [searchLocation, map]);
+
+  return null;
+}
+
+// Tracks real-time mouse cursor geographic coordinates across the tactical map canvas
+function CursorTracker({ onMouseMove }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map || !onMouseMove) return;
+
+    const handleMove = (e) => {
+      if (e?.latlng) {
+        onMouseMove({ lat: e.latlng.lat, lng: e.latlng.lng });
+      }
+    };
+
+    const handleOut = () => {
+      onMouseMove(null);
+    };
+
+    map.on('mousemove', handleMove);
+    map.on('mouseout', handleOut);
+
+    return () => {
+      map.off('mousemove', handleMove);
+      map.off('mouseout', handleOut);
+    };
+  }, [map, onMouseMove]);
 
   return null;
 }
@@ -183,7 +213,7 @@ function createClusterIcon(cluster) {
   });
 }
 
-export default function TacticalMap({ anomalies, selectedTarget, setSelectedTarget, searchLocation, layers = {} }) {
+export default function TacticalMap({ anomalies, selectedTarget, setSelectedTarget, searchLocation, layers = {}, onMouseMove }) {
   // Sensible defaults if a layer key isn't specified — everything visible
   // except cloud mask (no real Sentinel-2 cloud data connected yet).
   const showFirms = layers.firms !== false;
@@ -230,15 +260,40 @@ export default function TacticalMap({ anomalies, selectedTarget, setSelectedTarg
 
   const renderPopup = (anomaly, isCritical) => (
     <Popup className="tactical-popup font-mono text-[10px]">
-      <div className="bg-[#0F172A] p-2 border border-slate-700 text-slate-300">
-        <div className="font-bold text-white mb-1">#{anomaly.id} {anomaly.name}</div>
+      <div 
+        className="bg-[#0F172A] p-2.5 border border-slate-700 text-slate-300 min-w-[210px]"
+      >
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <div className="font-bold text-white">#{anomaly.id} {anomaly.name}</div>
+          <span className="text-[8px] px-1 py-0.5 rounded font-mono font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+            HOTSPOT
+          </span>
+        </div>
         {isCritical && (
           <div className="text-red-400 font-bold mb-1 border border-red-500/50 bg-red-500/10 px-1 inline-block">
             CRITICAL SEVERITY
           </div>
         )}
-        <div>LAT {anomaly.latitude}, LON {anomaly.longitude} // FRP: {anomaly.frp_radiance} MW</div>
-        <div className="text-cyan-400 mt-1 uppercase">{anomaly.category || 'UNKNOWN'}</div>
+        <div className="text-slate-400 text-[9px] mb-1">
+          LAT {Number(anomaly.latitude).toFixed(4)}°, LON {Number(anomaly.longitude).toFixed(4)}°
+        </div>
+        <div className="text-slate-300 text-[9.5px]">
+          FRP: <span className="text-cyan-400 font-bold font-mono">{anomaly.frp_radiance} MW</span>
+        </div>
+        <div className="text-cyan-400 mt-1 uppercase font-bold text-[9px]">
+          {anomaly.category || 'UNKNOWN'}
+        </div>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedTarget(anomaly);
+          }}
+          className="w-full mt-2.5 py-1 px-2 bg-cyan-500/20 hover:bg-cyan-500/40 active:bg-cyan-500/60 text-cyan-300 hover:text-white border border-cyan-500/50 text-[9px] font-bold rounded flex items-center justify-center gap-1.5 transition-colors uppercase cursor-pointer"
+        >
+          <Crosshair size={11} className="text-cyan-400" />
+          <span>LOAD INTO DOSSIER</span>
+        </button>
       </div>
     </Popup>
   );
@@ -255,6 +310,8 @@ export default function TacticalMap({ anomalies, selectedTarget, setSelectedTarg
         <TileLayer url={TILE_URL} />
         <TileLayer url={LABELS_URL} />
         <ZoomControl position="bottomleft" />
+
+        <CursorTracker onMouseMove={onMouseMove} />
 
         {hasData && <FitBoundsOnData anomalies={anomalies} />}
         <FlyToSearchLocation searchLocation={searchLocation} />
@@ -276,26 +333,46 @@ export default function TacticalMap({ anomalies, selectedTarget, setSelectedTarg
           maxClusterRadius={55}
           spiderfyOnMaxZoom
           showCoverageOnHover={false}
+          onClick={(e) => {
+            // When a cluster bubble is clicked, immediately target the highest FRP anomaly in the group
+            if (e?.layer?.getAllChildMarkers) {
+              const children = e.layer.getAllChildMarkers();
+              if (children && children.length > 0) {
+                let top = children[0]?.options?.__anomaly;
+                for (const m of children) {
+                  const a = m?.options?.__anomaly;
+                  if (a && (!top || (Number(a.frp_radiance) || 0) > (Number(top.frp_radiance) || 0))) {
+                    top = a;
+                  }
+                }
+                if (top) setSelectedTarget(top);
+              }
+            }
+          }}
         >
           {flameAnomalies.map((anomaly) => {
             const isCritical = anomaly.frp_radiance > 2000;
             return (
               <React.Fragment key={anomaly.id}>
                 {/* Priority Risk Shading: extra pulsing red ring on critical
-                    hotspots, only drawn when this layer is engaged. */}
+                    hotspots. interactive={false} ensures it never blocks clicks to the marker! */}
                 {isCritical && showRisk && (
                   <CircleMarker
                     center={[anomaly.latitude, anomaly.longitude]}
                     radius={26}
-                    pathOptions={{ color: '#FF003C', fillColor: '#FF003C', fillOpacity: 0.12, weight: 1.5, dashArray: '3,4' }}
+                    interactive={false}
+                    pathOptions={{ color: '#FF003C', fillColor: '#FF003C', fillOpacity: 0.12, weight: 1.5, dashArray: '3,4', interactive: false }}
                   />
                 )}
                 <Marker
                   position={[anomaly.latitude, anomaly.longitude]}
                   icon={buildFlameIcon(anomaly, getGlowClass(anomaly), getMarkerColor(anomaly))}
-                  eventHandlers={{ click: () => setSelectedTarget(anomaly) }}
-                  // Read by createClusterIcon to tint the cluster bubble red
-                  // if any hotspot inside it is critical severity.
+                  eventHandlers={{
+                    click: () => {
+                      setSelectedTarget(anomaly);
+                    },
+                  }}
+                  __anomaly={anomaly}
                   __isCritical={isCritical}
                 >
                   {renderPopup(anomaly, isCritical)}
@@ -328,7 +405,12 @@ export default function TacticalMap({ anomalies, selectedTarget, setSelectedTarg
               fillOpacity: 0.4,
               weight: 2,
             }}
-            eventHandlers={{ click: () => setSelectedTarget(anomaly) }}
+            eventHandlers={{
+              click: () => {
+                setSelectedTarget(anomaly);
+              },
+            }}
+            __anomaly={anomaly}
           >
             {renderPopup(anomaly, false)}
           </CircleMarker>
@@ -346,14 +428,19 @@ export default function TacticalMap({ anomalies, selectedTarget, setSelectedTarg
               fillOpacity: 0.4,
               weight: 2,
             }}
-            eventHandlers={{ click: () => setSelectedTarget(anomaly) }}
+            eventHandlers={{
+              click: () => {
+                setSelectedTarget(anomaly);
+              },
+            }}
+            __anomaly={anomaly}
           >
             {renderPopup(anomaly, false)}
           </CircleMarker>
         ))}
 
         {/* Population Density Buffer — 5km radius warning ring around every
-            critical hotspot, only drawn when this layer is engaged. */}
+            critical hotspot. interactive={false} ensures it never blocks clicks! */}
         {showBuffer &&
           hasData &&
           anomalies
@@ -363,17 +450,19 @@ export default function TacticalMap({ anomalies, selectedTarget, setSelectedTarg
                 key={`buffer-${a.id}`}
                 center={[a.latitude, a.longitude]}
                 radius={5000}
-                pathOptions={{ color: '#F59E0B', fillColor: '#F59E0B', fillOpacity: 0.06, weight: 1, dashArray: '6,6' }}
+                interactive={false}
+                pathOptions={{ color: '#F59E0B', fillColor: '#F59E0B', fillOpacity: 0.06, weight: 1, dashArray: '6,6', interactive: false }}
               />
             ))}
 
-        {/* Selected target highlight */}
+        {/* Selected target highlight - interactive={false} so it never intercepts clicks */}
         {selectedTarget && (
           <CircleMarker
             center={[selectedTarget.latitude, selectedTarget.longitude]}
             radius={20}
-            pathOptions={{ color: '#00F0FF', fillColor: 'transparent', weight: 1, dashArray: '4, 4' }}
-            className="animate-spin-slow"
+            interactive={false}
+            pathOptions={{ color: '#00F0FF', fillColor: 'transparent', weight: 1, dashArray: '4, 4', interactive: false }}
+            className="animate-spin-slow pointer-events-none"
           />
         )}
       </MapContainer>
