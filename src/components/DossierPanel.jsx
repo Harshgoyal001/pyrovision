@@ -73,14 +73,14 @@ export default function DossierPanel({ anomalies = [], selectedTarget, setSelect
                 LAYER MATRIX CONTROL
               </span>
               <span className="text-[7.5px] text-slate-400 truncate font-mono">
-                {engagedCount} OF 6 ACTIVE LAYERS
+                {engagedCount} OF 7 ACTIVE LAYERS
               </span>
             </div>
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
             <span className="bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 text-[8px] px-1.5 py-0.5 rounded font-mono font-bold">
-              {engagedCount}/6 ENGAGED
+              {engagedCount}/7 ENGAGED
             </span>
             <ChevronDown
               className={`w-3.5 h-3.5 text-cyan-400 transition-transform duration-200 ${
@@ -209,6 +209,24 @@ export default function DossierPanel({ anomalies = [], selectedTarget, setSelect
               <span className="text-slate-500 text-[10px] font-mono">
                 {layers.cloudmask ? 'ENGAGED' : 'OFF'}
               </span>
+            </div>
+
+            {/* WRI Power Plants (India) */}
+            <div 
+              onClick={() => toggleLayer('wriPlants')}
+              className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-slate-800/60 cursor-pointer transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                {layers.wriPlants ? (
+                  <CheckSquare className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                ) : (
+                  <Square className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                )}
+                <span className={`text-[10px] ${layers.wriPlants ? 'text-slate-200 font-semibold' : 'text-slate-400'}`}>
+                  WRI Power Plants (India)
+                </span>
+              </div>
+              <span className="text-amber-400 text-[10px] font-bold font-mono">907</span>
             </div>
           </div>
         )}

@@ -23,6 +23,7 @@ export default function App() {
     worldcover: true,
     buffer: true,
     cloudmask: false,
+    wriPlants: true,
   });
   const toggleLayer = (key) => setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
   const { anomalies, selectedTarget, setSelectedTarget, loading, error, lastFetchedAt, realtimeStatus, stats } = useThermalAnomalies();

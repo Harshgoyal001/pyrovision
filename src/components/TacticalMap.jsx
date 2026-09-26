@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, WMSTileLayer, Circle, CircleMarker, Marker, Popup, ZoomControl, useMap } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
@@ -73,13 +73,28 @@ function CursorTracker({ onMouseMove }) {
   useEffect(() => {
     if (!map || !onMouseMove) return;
 
+    let rafId = null;
+    let latestLatLng = null;
+
     const handleMove = (e) => {
-      if (e?.latlng) {
-        onMouseMove({ lat: e.latlng.lat, lng: e.latlng.lng });
+      if (!e?.latlng) return;
+      latestLatLng = { lat: e.latlng.lat, lng: e.latlng.lng };
+      if (!rafId) {
+        rafId = requestAnimationFrame(() => {
+          if (latestLatLng) {
+            onMouseMove(latestLatLng);
+          }
+          rafId = null;
+        });
       }
     };
 
     const handleOut = () => {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      latestLatLng = null;
       onMouseMove(null);
     };
 
@@ -87,6 +102,7 @@ function CursorTracker({ onMouseMove }) {
     map.on('mouseout', handleOut);
 
     return () => {
+      if (rafId) cancelAnimationFrame(rafId);
       map.off('mousemove', handleMove);
       map.off('mouseout', handleOut);
     };
@@ -95,22 +111,26 @@ function CursorTracker({ onMouseMove }) {
   return null;
 }
 
+let searchPinIconInstance = null;
 function searchPinIcon() {
-  return L.divIcon({
-    className: 'tactical-custom-icon',
-    html: `
-      <div style="
-        width:16px;height:16px;
-        border-radius:50% 50% 50% 0;
-        background:#00F0FF;
-        border:2px solid #0F172A;
-        box-shadow:0 0 10px #00F0FFcc;
-        transform:rotate(-45deg);
-      "></div>
-    `,
-    iconSize: [16, 16],
-    iconAnchor: [8, 16],
-  });
+  if (!searchPinIconInstance) {
+    searchPinIconInstance = L.divIcon({
+      className: 'tactical-custom-icon',
+      html: `
+        <div style="
+          width:16px;height:16px;
+          border-radius:50% 50% 50% 0;
+          background:#00F0FF;
+          border:2px solid #0F172A;
+          box-shadow:0 0 10px #00F0FFcc;
+          transform:rotate(-45deg);
+        "></div>
+      `,
+      iconSize: [16, 16],
+      iconAnchor: [8, 16],
+    });
+  }
+  return searchPinIconInstance;
 }
 
 function MapLegend() {
@@ -145,18 +165,24 @@ function getIconSizePx(anomaly) {
   return 24;
 }
 
-// Builds a Leaflet divIcon: a flame PNG with a soft colored glow, sitting
-// on a solid dark backdrop circle (for contrast against busy satellite
-// imagery) with a subtle "radar ping" ripple ring (animate-pulse-ring from
-// index.css) around it.
+// Global cache for flame icons — Leaflet checks icon equality (===).
+// By caching, icons are not recreated on re-renders, preventing DOM re-insertion and blinking!
+const FLAME_ICON_CACHE = new Map();
+
 function buildFlameIcon(anomaly, glowClass, color) {
   const src = FLAME_IMAGES[anomaly.category];
   const baseSize = getIconSizePx(anomaly);
+  const cacheKey = `${anomaly.category}_${baseSize}_${glowClass}_${color}`;
+
+  if (FLAME_ICON_CACHE.has(cacheKey)) {
+    return FLAME_ICON_CACHE.get(cacheKey);
+  }
+
   const outerSize = Math.round(baseSize * 1.6);
   const flameSize = Math.round(outerSize * 0.55);
   const flameOffset = (outerSize - flameSize) / 2;
 
-  return L.divIcon({
+  const icon = L.divIcon({
     className: 'tactical-custom-icon',
     html: `
       <div style="position:relative;width:${outerSize}px;height:${outerSize}px;">
@@ -180,6 +206,9 @@ function buildFlameIcon(anomaly, glowClass, color) {
     iconAnchor: [outerSize / 2, outerSize / 2],
     popupAnchor: [0, -outerSize / 2],
   });
+
+  FLAME_ICON_CACHE.set(cacheKey, icon);
+  return icon;
 }
 
 // Custom cluster bubble — dark tactical style with a cyan ring, showing the
@@ -213,7 +242,22 @@ function createClusterIcon(cluster) {
   });
 }
 
-export default function TacticalMap({ anomalies, selectedTarget, setSelectedTarget, searchLocation, layers = {}, onMouseMove }) {
+function TacticalMap({ anomalies, selectedTarget, setSelectedTarget, searchLocation, layers = {}, onMouseMove, showPowerPlants }) {
+  // WRI Power Plants data — loaded once from static JSON
+  const [powerPlants, setPowerPlants] = useState([]);
+
+  useEffect(() => {
+    fetch('/data/wri_power_plants.json')
+      .then(res => res.json())
+      .then(data => setPowerPlants(data))
+      .catch(err => console.error('Failed to load power plants:', err));
+  }, []);
+
+  // Dedicated canvas renderer for 861 power-plant dots with auto-precision click tolerance.
+  // tolerance: 18 extends the hit-test radius on canvas so clicking near/around any dot
+  // immediately triggers the popup without requiring pixel-perfect clicking.
+  const wriRenderer = useMemo(() => L.canvas({ padding: 0.5, tolerance: 18 }), []);
+
   // Sensible defaults if a layer key isn't specified — everything visible
   // except cloud mask (no real Sentinel-2 cloud data connected yet).
   const showFirms = layers.firms !== false;
@@ -455,6 +499,47 @@ export default function TacticalMap({ anomalies, selectedTarget, setSelectedTarg
               />
             ))}
 
+        {/* WRI Power Plants — amber dots, canvas-rendered for performance */}
+        {showPowerPlants && powerPlants.map((plant, idx) => (
+          <CircleMarker
+            key={`wri-${idx}`}
+            center={[plant.latitude, plant.longitude]}
+            radius={5}
+            pathOptions={{ color: '#D97706', fillColor: '#F59E0B', fillOpacity: 0.85, weight: 1.5, renderer: wriRenderer }}
+          >
+            <Popup className="wri-popup font-mono">
+              <div>
+                {/* Amber Header Bar */}
+                <div style={{ background: '#F59E0B', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '14px' }}>⚡</span>
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Power Plant</span>
+                </div>
+                {/* Dark Body */}
+                <div style={{ background: '#0F172A', padding: '12px' }}>
+                  {/* Plant Name */}
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#fff', marginBottom: '10px', lineHeight: 1.3 }}>{plant.name}</div>
+                  {/* Capacity & Fuel Grid */}
+                  <div style={{ display: 'flex', gap: '24px', marginBottom: '10px' }}>
+                    <div>
+                      <div style={{ fontSize: '8px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>Capacity (MW)</div>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#F59E0B', fontFamily: 'monospace' }}>{plant.capacity_mw?.toLocaleString()} MW</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '8px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>Primary Fuel</div>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#fff' }}>{plant.primary_fuel}</div>
+                    </div>
+                  </div>
+                  {/* Coordinates */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '9px', color: '#94a3b8' }}>
+                    <span style={{ color: '#FF003C' }}>📍</span>
+                    <span style={{ fontFamily: 'monospace' }}>{plant.latitude}, {plant.longitude}</span>
+                  </div>
+                </div>
+              </div>
+            </Popup>
+          </CircleMarker>
+        ))}
+
         {/* Selected target highlight - interactive={false} so it never intercepts clicks */}
         {selectedTarget && (
           <CircleMarker
@@ -479,3 +564,5 @@ export default function TacticalMap({ anomalies, selectedTarget, setSelectedTarg
     </div>
   );
 }
+
+export default React.memo(TacticalMap);
