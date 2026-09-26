@@ -19,38 +19,55 @@ function normalizeAnomaly(row) {
   const days = Number(row.days_active ?? 1)
   const hasFacility = Boolean(row.has_facility)
 
-  // Determine category directly from Supabase fields
-// Determine category directly from Supabase fields
-  let category = row.category
-  const finalClass = String(row.final_classification || '').trim().toLowerCase()
-  const prediction = String(row.ai_prediction || '').trim().toLowerCase()
-  if (!category) {
-    if (finalClass === 'wildfire') {
-      category = 'Wildfire Front'
-    } else if (finalClass === 'gas flare') {
-      category = 'Gas Flare'
-    } else if (finalClass === 'crop residue burning') {
-      category = 'Crop Residue Burning'
-    } else if (prediction === 'wildfire') {
-      category = 'Wildfire Front'
-    } else if (prediction === 'gas flare') {
-      category = 'Gas Flare'
-    } else if (prediction === 'industrial process' || prediction === 'industrial') {
-      category = 'Industrial Process'
-    } else if (hasFacility) {
-      const lower = name.toLowerCase()
-      if (lower.includes('gas') || lower.includes('flare') || lower.includes('refinery') || lower.includes('petro') || lower.includes('oil')) {
-        category = 'Gas Flare'
-      } else {
-        category = 'Industrial Process'
-      }
-    } else if (days >= 3 || detections >= 8) {
-      category = 'Wildfire Front'
-    } else if (days === 2) {
-      category = 'Crop Residue Burning'
-    } else {
-      category = 'Unknown / Pending Sample'
-    }
+  // 5 Precise Categories from PyroVision Technical Pipeline (PPT Step 8):
+  // 1. Mining Activity | 2. Gas Flare | 3. Industrial Fire | 4. Agriculture Fire | 5. Wild Fire
+  let category = '';
+  const finalClass = String(row.final_classification || '').trim().toLowerCase();
+  const prediction = String(row.ai_prediction || '').trim().toLowerCase();
+  const lowerName = name.toLowerCase();
+
+  const isCoal = Boolean(
+    row.coal_verified || 
+    row.coal_mine_name || 
+    lowerName.includes('coal') || 
+    lowerName.includes('mine') || 
+    lowerName.includes('colliery') || 
+    lowerName.includes('ocp')
+  );
+
+  if (isCoal) {
+    category = 'Mining Activity';
+  } else if (
+    finalClass === 'gas flare' || 
+    prediction === 'gas flare' || 
+    lowerName.includes('flare') || 
+    lowerName.includes('refinery') || 
+    lowerName.includes('petro') || 
+    lowerName.includes('oil') || 
+    lowerName.includes('gas')
+  ) {
+    category = 'Gas Flare';
+  } else if (
+    hasFacility || 
+    row.wri_verified || 
+    row.cea_validated || 
+    finalClass.includes('industrial') || 
+    prediction.includes('industrial') || 
+    lowerName.includes('steel') || 
+    lowerName.includes('power') || 
+    lowerName.includes('plant') || 
+    lowerName.includes('cement') || 
+    lowerName.includes('smelter')
+  ) {
+    category = 'Industrial Fire';
+  } else if (
+    finalClass === 'crop residue burning' || 
+    prediction === 'crop residue burning' || 
+    days === 2
+  ) {
+    category = 'Agriculture Fire';
+  } else {
+    category = 'Wild Fire';
   }
 
   // Radiative Power (MW FRP) derived from real detections and days active
@@ -94,7 +111,7 @@ function normalizeAnomaly(row) {
     else region = 'Southern Coastal Grid'
   }
 
-  // Derive realistic last_detected timestamp within 7-day observation window
+  // Derive realistic last_detected timestamp within 5-day observation window
   // If row has an explicit timestamp/acq_date, preserve it
   let timestamp = row.timestamp || row.acq_date;
   if (!timestamp) {
@@ -103,9 +120,9 @@ function normalizeAnomaly(row) {
     if (hasFacility || days >= 3 || detections >= 6) {
       hoursAgo = (seed % 22) + 1;
     } else if (days === 2 || detections >= 3) {
-      hoursAgo = 12 + (seed % 56);
+      hoursAgo = 10 + (seed % 56);
     } else {
-      hoursAgo = 2 + (seed % 160);
+      hoursAgo = 2 + (seed % 115);
     }
     timestamp = new Date(Date.now() - hoursAgo * 3600 * 1000).toISOString();
   }
@@ -131,11 +148,11 @@ function normalizeAnomaly(row) {
 function computeStats(anomalies) {
   const total = anomalies.length
   const categories = {
-    'Unknown / Pending Sample': 0,
-    'Industrial Process': 0,
+    'Wild Fire': 0,
+    'Industrial Fire': 0,
     'Gas Flare': 0,
-    'Wildfire Front': 0,
-    'Crop Residue Burning': 0
+    'Agriculture Fire': 0,
+    'Mining Activity': 0
   }
   
   let criticalCount = 0

@@ -13,16 +13,17 @@ const ESRI_SAT = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Ima
 const ESRI_LABELS = 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}';
 
 const CATEGORY_COLORS = {
-  'Wildfire Front': '#FF003C',
-  'Industrial Process': '#F59E0B',
+  'Wild Fire': '#FF003C',
+  'Industrial Fire': '#F59E0B',
   'Gas Flare': '#00F0FF',
-  'Crop Residue Burning': '#22C55E',
+  'Agriculture Fire': '#22C55E',
+  'Mining Activity': '#A855F7',
 };
 
 const FLAME_IMAGES = {
-  'Wildfire Front': wildfireFlame,
+  'Wild Fire': wildfireFlame,
   'Gas Flare': gasFlareFlame,
-  'Crop Residue Burning': cropBurnFlame,
+  'Agriculture Fire': cropBurnFlame,
 };
 
 function getColor(cat) {
@@ -30,9 +31,9 @@ function getColor(cat) {
 }
 
 function getGlowClass(cat) {
-  if (cat === 'Wildfire Front') return 'marker-critical';
+  if (cat === 'Wild Fire') return 'marker-critical';
   if (cat === 'Gas Flare') return 'marker-gasflare';
-  if (cat === 'Crop Residue Burning') return 'marker-crop';
+  if (cat === 'Agriculture Fire') return 'marker-crop';
   return '';
 }
 
@@ -57,7 +58,7 @@ export default function GlobeView({ anomalies = [], selectedTarget, setSelectedT
 
   const visible = anomalies.filter((a) => {
     if (FLAME_IMAGES[a.category]) return showFirms;
-    if (a.category === 'Industrial Process') return showIndustrial;
+    if (a.category === 'Industrial Fire' || a.category === 'Mining Activity') return showIndustrial;
     return showFirms;
   });
 
@@ -90,7 +91,7 @@ export default function GlobeView({ anomalies = [], selectedTarget, setSelectedT
           {
             id: 'bg',
             type: 'background',
-            paint: { 'background-color': '#02040A' },
+            paint: { 'background-color': '#0F1218' },
           },
           {
             id: 'satellite-layer',
@@ -311,7 +312,7 @@ export default function GlobeView({ anomalies = [], selectedTarget, setSelectedT
           outer.innerHTML = `
             <div style="position:relative;width:100%;height:100%;pointer-events:none;">
               <div class="animate-pulse-ring" style="position:absolute;inset:0;border-radius:50%;background:${color};opacity:0.35;"></div>
-              <div style="position:absolute;inset:0;border-radius:50%;background:rgba(7,10,15,0.85);border:1.5px solid ${color};box-shadow:0 0 10px ${color}aa;"></div>
+              <div style="position:absolute;inset:0;border-radius:50%;background:#12151C;border:1.5px solid ${color};box-shadow:0 0 10px ${color}aa;"></div>
               <img src="${flameSrc}" class="${glowClass}" style="position:absolute;top:${flameOffset}px;left:${flameOffset}px;width:${flameSize}px;height:${flameSize}px;display:block;" />
             </div>
           `;
@@ -327,7 +328,7 @@ export default function GlobeView({ anomalies = [], selectedTarget, setSelectedT
           outer.style.zIndex = '15';
 
           outer.innerHTML = `
-            <div style="width:100%;height:100%;border-radius:50%;background:${color};box-shadow:0 0 ${isCritical ? 12 : 6}px 2px ${color}cc;border:1.5px solid #0F172A;pointer-events:none;"></div>
+            <div style="width:100%;height:100%;border-radius:50%;background:${color};box-shadow:0 0 ${isCritical ? 12 : 6}px 2px ${color}cc;border:1.5px solid #181C26;pointer-events:none;"></div>
           `;
         }
 
@@ -344,7 +345,7 @@ export default function GlobeView({ anomalies = [], selectedTarget, setSelectedT
           offset: popupOffset,
           className: 'pyro-globe-popup',
         }).setHTML(`
-          <div style="pointer-events:none;font-family:'IBM Plex Mono',monospace;font-size:10px;background:#0F172A;border:1px solid #334155;padding:8px 10px;border-radius:4px;color:#CBD5E1;min-width:180px;box-shadow:0 4px 16px rgba(0,0,0,0.7)">
+          <div style="pointer-events:none;font-family:'IBM Plex Mono',monospace;font-size:10px;background:#181C26;border:1px solid #334155;padding:8px 10px;border-radius:4px;color:#CBD5E1;min-width:180px;box-shadow:0 4px 16px rgba(0,0,0,0.7)">
             <div style="font-weight:700;color:#FFFFFF;margin-bottom:4px">#${a.id} ${a.name || ''}</div>
             ${
               isCritical
@@ -464,7 +465,7 @@ export default function GlobeView({ anomalies = [], selectedTarget, setSelectedT
           width:18px;height:18px;
           border-radius:50% 50% 50% 0;
           background:#00F0FF;
-          border:2px solid #0F172A;
+          border:2px solid #181C26;
           box-shadow:0 0 12px #00F0FFcc;
           transform:rotate(-45deg);
           margin:auto;
@@ -475,7 +476,7 @@ export default function GlobeView({ anomalies = [], selectedTarget, setSelectedT
         offset: 14,
         className: 'pyro-globe-popup',
       }).setHTML(`
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;background:#0F172A;border:1px solid #00F0FF;padding:6px 10px;border-radius:4px;color:#F1F5F9;max-width:220px;box-shadow:0 4px 16px rgba(0,240,255,0.2)">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;background:#181C26;border:1px solid #00F0FF;padding:6px 10px;border-radius:4px;color:#F1F5F9;max-width:220px;box-shadow:0 4px 16px rgba(0,240,255,0.2)">
           <div style="color:#00F0FF;font-weight:700;margin-bottom:2px">SEARCH TARGET</div>
           <div style="font-weight:600">${searchLocation.label || ''}</div>
           <div style="font-size:8.5px;color:#64748B;margin-top:2px">LAT ${lat.toFixed(4)}°, LON ${lon.toFixed(4)}°</div>
@@ -500,12 +501,12 @@ export default function GlobeView({ anomalies = [], selectedTarget, setSelectedT
   }, [searchLocation, mapLoaded]);
 
   return (
-    <div className="h-full w-full relative overflow-hidden font-mono select-none bg-[#02040A]">
+    <div className="h-full w-full relative overflow-hidden font-mono select-none bg-[#0F1218]">
       {/* 3D WebGL Canvas */}
       <div ref={containerRef} className="h-full w-full" />
 
       {/* Tactical Legend */}
-      <div className="absolute bottom-8 right-3 z-10 bg-[#0F172A]/90 border border-slate-700/50 rounded px-3 py-2 text-[9px] font-mono text-slate-300 space-y-1.5 pointer-events-none">
+      <div className="absolute bottom-8 right-3 z-10 bg-[#181C26]/90 border border-slate-700/50 rounded px-3 py-2 text-[9px] font-mono text-slate-300 space-y-1.5 pointer-events-none">
         <div className="text-[8px] text-slate-500 uppercase tracking-wider mb-1">TACTICAL LEGEND</div>
         {[
           { label: 'WILDFIRE', color: '#FF003C' },
@@ -526,7 +527,7 @@ export default function GlobeView({ anomalies = [], selectedTarget, setSelectedT
 
       {/* Top HUD Badge */}
       <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-        <div className="flex items-center gap-2 bg-[#0F172A]/85 border border-cyan-500/30 px-3 py-1 rounded text-[9px] text-cyan-400">
+        <div className="flex items-center gap-2 bg-[#181C26]/85 border border-cyan-500/30 px-3 py-1 rounded text-[9px] text-cyan-400">
           <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
           <span>3D SATELLITE GLOBE // {visible.length} HOTSPOTS ACTIVE</span>
         </div>
@@ -544,7 +545,7 @@ export default function GlobeView({ anomalies = [], selectedTarget, setSelectedT
           display: none !important;
         }
         .maplibregl-ctrl-group {
-          background: #0F172A !important;
+          background: #181C26 !important;
           border: 1px solid #334155 !important;
         }
         .maplibregl-ctrl-group button {

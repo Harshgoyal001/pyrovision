@@ -84,13 +84,13 @@ export default function MapView({
   const azStr = Math.round(rawBearing).toString().padStart(3, '0');
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-[#070A0F] font-mono">
+    <div className="flex h-full w-full overflow-hidden bg-[#12151C] font-mono">
       {/* Left side: Info bar + Map / Globe */}
       <div className="flex-1 flex flex-col relative h-full">
         {/* Info bar */}
-        <div className="h-7 bg-[#0F172A]/90 border-b border-slate-700/30 flex items-center px-3 gap-3 text-[9px] z-10 w-full absolute top-0 left-0 backdrop-blur-sm select-none">
+        <div className="h-7 bg-[#181C26]/90 border-b border-blue-900/40 flex items-center px-3 gap-3 text-[9px] z-10 w-full absolute top-0 left-0 backdrop-blur-sm select-none">
           {/* Day / Time Window Filter in the Left Corner */}
-          <div className="flex items-center gap-1.5 bg-[#080d1a] border border-cyan-500/40 rounded px-2 py-0.5 shadow-sm">
+          <div className="flex items-center gap-1.5 bg-[#151821] border border-cyan-500/40 rounded px-2 py-0.5 shadow-sm">
             <Clock size={11} className="text-cyan-400" />
             <span className="text-cyan-400 font-bold tracking-wider text-[9px]">TIME:</span>
             <select
@@ -98,11 +98,10 @@ export default function MapView({
               onChange={(e) => setDayFilter(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
               className="bg-transparent text-slate-200 text-[10px] font-mono font-semibold focus:outline-none cursor-pointer"
             >
-              <option value={24} className="bg-[#0F172A] text-slate-200">24h</option>
-              <option value={72} className="bg-[#0F172A] text-slate-200">3 Days</option>
-              <option value={120} className="bg-[#0F172A] text-slate-200">5 Days</option>
-              <option value={168} className="bg-[#0F172A] text-slate-200">7 Days</option>
-              <option value="ALL" className="bg-[#0F172A] text-slate-200">All</option>
+              <option value={24} className="bg-[#181C26] text-slate-200">24h</option>
+              <option value={72} className="bg-[#181C26] text-slate-200">3 Days</option>
+              <option value={120} className="bg-[#181C26] text-slate-200">5 Days</option>
+              <option value="ALL" className="bg-[#181C26] text-slate-200">All</option>
             </select>
             <span className="text-cyan-400/80 font-mono text-[9px] border-l border-slate-700 pl-1.5 ml-0.5">
               {filteredAnomalies.length}

@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 @theme {
-  --color-tactical-bg: #070A0F;
-  --color-tactical-surface: #0F172A;
+  --color-tactical-bg: #12151C;
+  --color-tactical-surface: #181C26;
   --color-tactical-cyan: #00F0FF;
   --color-tactical-red: #FF003C;
   --color-tactical-amber: #F59E0B;
@@ -18,7 +18,7 @@
 body {
   margin: 0;
   padding: 0;
-  background: #070A0F;
+  background: #12151C;
   color: #cbd5e1;
   font-family: 'IBM Plex Mono', ui-monospace, monospace;
   -webkit-font-smoothing: antialiased;
@@ -38,7 +38,7 @@ body {
   height: 4px;
 }
 ::-webkit-scrollbar-track {
-  background: #070A0F;
+  background: #12151C;
 }
 ::-webkit-scrollbar-thumb {
   background: #1e293b;
@@ -92,12 +92,12 @@ body {
 
 /* ── Leaflet Dark Overrides ── */
 .leaflet-container {
-  background: #070A0F !important;
+  background: #12151C !important;
   font-family: 'IBM Plex Mono', monospace !important;
 }
 
 .leaflet-control-zoom a {
-  background: #0F172A !important;
+  background: #181C26 !important;
   color: #00F0FF !important;
   border-color: rgba(0, 240, 255, 0.2) !important;
 }
@@ -111,7 +111,7 @@ body {
 }
 
 .leaflet-popup-content-wrapper {
-  background: rgba(15, 23, 42, 0.95) !important;
+  background: rgba(24, 28, 38, 0.95) !important;
   color: #cbd5e1 !important;
   border: 1px solid rgba(0, 240, 255, 0.3) !important;
   border-radius: 4px !important;
@@ -121,7 +121,7 @@ body {
 }
 
 .leaflet-popup-tip {
-  background: rgba(15, 23, 42, 0.95) !important;
+  background: rgba(24, 28, 38, 0.95) !important;
   border: 1px solid rgba(0, 240, 255, 0.3) !important;
 }
 
@@ -160,13 +160,13 @@ body {
 }
 
 .tactical-surface {
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(24, 28, 38, 0.6);
 }
 
 .tactical-btn {
   border: 1px solid rgba(0, 240, 255, 0.4);
   color: #00F0FF;
-  background: rgba(15, 23, 42, 0.8);
+  background: rgba(24, 28, 38, 0.8);
   font-family: 'IBM Plex Mono', monospace;
   font-size: 10px;
   font-weight: 600;
@@ -284,7 +284,7 @@ input[type="checkbox"]:checked::after {
 
 /* ── WRI Power Plant Popup — Amber-themed ── */
 .wri-popup .leaflet-popup-content-wrapper {
-  background: #0F172A !important;
+  background: #181C26 !important;
   border: 1px solid rgba(245, 158, 11, 0.4) !important;
   border-radius: 6px !important;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), 0 0 15px rgba(245, 158, 11, 0.08) !important;
@@ -298,12 +298,12 @@ input[type="checkbox"]:checked::after {
 }
 
 .wri-popup .leaflet-popup-tip {
-  background: #0F172A !important;
+  background: #181C26 !important;
   border: 1px solid rgba(245, 158, 11, 0.4) !important;
 }
 
 .wri-popup .leaflet-popup-close-button {
-  color: #0F172A !important;
+  color: #181C26 !important;
   font-weight: bold !important;
   font-size: 16px !important;
   top: 4px !important;

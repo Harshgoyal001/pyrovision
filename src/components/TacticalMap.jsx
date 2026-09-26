@@ -1,101 +1,82 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { MapContainer, TileLayer, WMSTileLayer, Circle, CircleMarker, Marker, Popup, ZoomControl, useMap } from 'react-leaflet';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, CircleMarker, Circle, ZoomControl, useMap, WMSTileLayer } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
-import { Crosshair } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
-import 'leaflet.markercluster/dist/MarkerCluster.css';
-import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
+import { Crosshair, Layers, Radio } from 'lucide-react';
 
-// Copy these three files into src/assets/icons/ in your project, then this
-// import will resolve correctly.
 import wildfireFlame from '../assets/icons/WILD_FIRE.png';
 import gasFlareFlame from '../assets/icons/GAS_FLARE.png';
 import cropBurnFlame from '../assets/icons/CROP_BURN.png';
 
-// Esri World Imagery — real satellite/terrain tiles, free and keyless
-// forever, looks like Google Maps' Satellite view.
-const TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+// Basemaps - Premium MapTiler Dataviz Dark (Top-tier defense & intelligence geospatial styling)
+const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_API_KEY || '7S7lUtWnfER9El1v16yE';
+const DARK_MATTER_URL = `https://api.maptiler.com/maps/dataviz-dark/256/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`;
+const SATELLITE_TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+const SATELLITE_LABELS_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}';
 
-// Esri's free labels-only overlay — country/state/city names, transparent
-// background, drawn on top of the satellite imagery below.
-const LABELS_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}';
-
-// ESA WorldCover's real public WMS — free, keyless, official land-cover map
-// (forest/cropland/water/etc). Used for the "ESA WorldCover 10m" layer toggle.
+// ESA WorldCover 10m
 const WORLDCOVER_WMS_URL = 'https://services.terrascope.be/wms/v2';
 const WORLDCOVER_LAYER = 'WORLDCOVER_2021_MAP';
 
-const CATEGORY_COLORS = {
-  'Wildfire Front': '#FF003C',
-  'Industrial Process': '#F59E0B',
-  'Gas Flare': '#00F0FF',
-  'Crop Residue Burning': '#22C55E',
+// 5 Precise Categories from PPT
+export const CATEGORY_COLORS = {
+  'Wild Fire': '#FF003C',        // Red
+  'Industrial Fire': '#F59E0B',  // Amber / Orange
+  'Gas Flare': '#00F0FF',        // Electric Cyan
+  'Agriculture Fire': '#22C55E', // Green
+  'Mining Activity': '#A855F7',  // Vibrant Purple
 };
 
-// Categories that get a real flame image icon instead of a plain dot.
-const FLAME_IMAGES = {
-  'Wildfire Front': wildfireFlame,
-  'Gas Flare': gasFlareFlame,
-  'Crop Residue Burning': cropBurnFlame,
-};
-
-// Auto-fits the map to all current anomaly points whenever the data changes.
+// Auto-fits the map to all current anomaly points whenever data changes
 function FitBoundsOnData({ anomalies }) {
   const map = useMap();
 
   useEffect(() => {
     if (!anomalies || anomalies.length === 0) return;
-    const bounds = anomalies.map((a) => [a.latitude, a.longitude]);
-    map.fitBounds(bounds, { padding: [40, 40], maxZoom: 9 });
+    const bounds = anomalies
+      .filter((a) => a.latitude && a.longitude)
+      .map((a) => [a.latitude, a.longitude]);
+    if (bounds.length > 0) {
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 9 });
+    }
   }, [anomalies, map]);
 
   return null;
 }
 
-// Flies the map to a searched location (from TopHeader's search box) and
-// drops a temporary pin there.
+// Flies to searched location
 function FlyToSearchLocation({ searchLocation }) {
   const map = useMap();
 
   useEffect(() => {
-    if (!searchLocation) return;
-    map.flyTo([searchLocation.lat, searchLocation.lon], 12, { duration: 1.2 });
+    if (searchLocation) {
+      map.flyTo([searchLocation.lat, searchLocation.lon], 11, {
+        duration: 1.5,
+        easeLinearity: 0.25,
+      });
+    }
   }, [searchLocation, map]);
 
   return null;
 }
 
-// Tracks real-time mouse cursor geographic coordinates across the tactical map canvas
+// Tracks cursor coordinates
 function CursorTracker({ onMouseMove }) {
   const map = useMap();
 
   useEffect(() => {
-    if (!map || !onMouseMove) return;
-
     let rafId = null;
-    let latestLatLng = null;
-
     const handleMove = (e) => {
-      if (!e?.latlng) return;
-      latestLatLng = { lat: e.latlng.lat, lng: e.latlng.lng };
-      if (!rafId) {
-        rafId = requestAnimationFrame(() => {
-          if (latestLatLng) {
-            onMouseMove(latestLatLng);
-          }
-          rafId = null;
-        });
-      }
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        onMouseMove?.({ lat: e.latlng.lat, lng: e.latlng.lng });
+      });
     };
 
     const handleOut = () => {
-      if (rafId) {
-        cancelAnimationFrame(rafId);
-        rafId = null;
-      }
-      latestLatLng = null;
-      onMouseMove(null);
+      if (rafId) cancelAnimationFrame(rafId);
+      onMouseMove?.(null);
     };
 
     map.on('mousemove', handleMove);
@@ -133,73 +114,103 @@ function searchPinIcon() {
   return searchPinIconInstance;
 }
 
-function MapLegend() {
+function MapLegend({ counts = {} }) {
   const items = [
-    { label: 'WILDFIRE', color: '#FF003C' },
-    { label: 'INDUSTRIAL', color: '#F59E0B' },
-    { label: 'GAS FLARE', color: '#00F0FF' },
-    { label: 'CROP BURN', color: '#22C55E' },
-    { label: 'UNCLASSIFIED', color: '#94A3B8' },
+    { label: 'WILD FIRE', color: '#FF003C', count: counts['Wild Fire'] || 0 },
+    { label: 'INDUSTRIAL FIRE', color: '#F59E0B', count: counts['Industrial Fire'] || 0 },
+    { label: 'GAS FLARE', color: '#00F0FF', count: counts['Gas Flare'] || 0 },
+    { label: 'AGRICULTURE FIRE', color: '#22C55E', count: counts['Agriculture Fire'] || 0 },
+    { label: 'MINING ACTIVITY', color: '#A855F7', count: counts['Mining Activity'] || 0 },
   ];
 
   return (
-    <div className="absolute bottom-3 right-3 z-[1000] bg-[#0F172A]/90 border border-slate-700/40 rounded px-2.5 py-2 text-[9px] font-mono text-slate-300 space-y-1 pointer-events-none">
+    <div className="absolute bottom-3 right-3 z-[1000] bg-[#181C26]/95 border border-cyan-500/30 rounded px-3 py-2 text-[9px] font-mono text-slate-300 space-y-1.5 shadow-2xl backdrop-blur-sm pointer-events-none">
+      <div className="text-[8px] text-cyan-400 font-bold uppercase tracking-wider border-b border-slate-700/60 pb-1">
+        FIRE CLASSIFICATION MATRIX
+      </div>
       {items.map((item) => (
-        <div key={item.label} className="flex items-center gap-1.5">
-          <span
-            className="inline-block w-2 h-2 rounded-full"
-            style={{ backgroundColor: item.color, boxShadow: `0 0 4px ${item.color}` }}
-          />
-          <span>{item.label}</span>
+        <div key={item.label} className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-1.5">
+            <span
+              className="inline-block w-2.5 h-2.5 rounded-full"
+              style={{ backgroundColor: item.color, boxShadow: `0 0 6px ${item.color}` }}
+            />
+            <span className="font-semibold text-slate-200">{item.label}</span>
+          </div>
+          <span className="font-mono text-slate-400 text-[8.5px]">{item.count}</span>
         </div>
       ))}
     </div>
   );
 }
 
-// Same severity scaling that used to size the CircleMarker radius — now
-// sizes the flame icon in pixels instead.
 function getIconSizePx(anomaly) {
-  if (anomaly.frp_radiance > 2000) return 38;
-  if (anomaly.frp_radiance > 500) return 30;
-  return 24;
+  const frp = Number(anomaly.frp_radiance || anomaly.max_frp || 0);
+  if (frp > 2000) return 36;
+  if (frp > 500) return 28;
+  return 22;
 }
 
-// Global cache for flame icons — Leaflet checks icon equality (===).
-// By caching, icons are not recreated on re-renders, preventing DOM re-insertion and blinking!
-const FLAME_ICON_CACHE = new Map();
+// Global cache for tactical category markers
+const TACTICAL_MARKER_CACHE = new Map();
 
-function buildFlameIcon(anomaly, glowClass, color) {
-  const src = FLAME_IMAGES[anomaly.category];
+function buildTacticalMarker(anomaly) {
+  const cat = anomaly.category || 'Wild Fire';
+  const color = CATEGORY_COLORS[cat] || '#FF003C';
+  const isCritical = Number(anomaly.frp_radiance || 0) > 2000;
   const baseSize = getIconSizePx(anomaly);
-  const cacheKey = `${anomaly.category}_${baseSize}_${glowClass}_${color}`;
+  const cacheKey = `${cat}_${baseSize}_${isCritical ? 'crit' : 'norm'}`;
 
-  if (FLAME_ICON_CACHE.has(cacheKey)) {
-    return FLAME_ICON_CACHE.get(cacheKey);
+  if (TACTICAL_MARKER_CACHE.has(cacheKey)) {
+    return TACTICAL_MARKER_CACHE.get(cacheKey);
   }
 
-  const outerSize = Math.round(baseSize * 1.6);
-  const flameSize = Math.round(outerSize * 0.55);
-  const flameOffset = (outerSize - flameSize) / 2;
+  const outerSize = Math.round(baseSize * 1.5);
+  const iconSize = Math.round(outerSize * 0.52);
+
+  // Generate category-specific center graphic
+  let innerGraphic = '';
+  if (cat === 'Wild Fire') {
+    innerGraphic = `<img src="${wildfireFlame}" style="width:${iconSize}px;height:${iconSize}px;display:block;" />`;
+  } else if (cat === 'Gas Flare') {
+    innerGraphic = `<img src="${gasFlareFlame}" style="width:${iconSize}px;height:${iconSize}px;display:block;" />`;
+  } else if (cat === 'Agriculture Fire') {
+    innerGraphic = `<img src="${cropBurnFlame}" style="width:${iconSize}px;height:${iconSize}px;display:block;" />`;
+  } else if (cat === 'Mining Activity') {
+    // Pickaxe / Mine SVG
+    innerGraphic = `
+      <svg viewBox="0 0 24 24" width="${iconSize}" height="${iconSize}" fill="none" stroke="#A855F7" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m14 10 7-7m-3 0 3 3M3 21l8-8m-4-1 5 5M2 5l3-3 6 6-3 3z"/>
+      </svg>
+    `;
+  } else {
+    // Industrial Fire: Factory SVG
+    innerGraphic = `
+      <svg viewBox="0 0 24 24" width="${iconSize}" height="${iconSize}" fill="none" stroke="#F59E0B" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4H2z"/>
+      </svg>
+    `;
+  }
 
   const icon = L.divIcon({
     className: 'tactical-custom-icon',
     html: `
-      <div style="position:relative;width:${outerSize}px;height:${outerSize}px;">
-        <div class="animate-pulse-ring" style="position:absolute;inset:0;border-radius:50%;background:${color};opacity:0.3;"></div>
-        <div style="
-          position:absolute;inset:0;
-          border-radius:50%;
-          background:rgba(7,10,15,0.85);
-          border:1.5px solid ${color};
-          box-shadow:0 0 8px ${color}99;
+      <div style="position:relative;width:${outerSize}px;height:${outerSize}px;display:flex;align-items:center;justify-content:center;cursor:pointer;">
+        <!-- Pulsing aura ring in category color -->
+        <div class="animate-pulse-ring" style="
+          position:absolute;inset:0;border-radius:50%;
+          background:${color};opacity:0.4;
         "></div>
-        <img src="${src}" class="${glowClass}" style="
-          position:absolute;
-          top:${flameOffset}px;left:${flameOffset}px;
-          width:${flameSize}px;height:${flameSize}px;
-          display:block;
-        " />
+        <!-- High-tech dark circle badge with category colored glowing border -->
+        <div style="
+          position:absolute;inset:2px;border-radius:50%;
+          background:#12151C;
+          border:2px solid ${color};
+          box-shadow:0 0 12px ${color}bb, inset 0 0 6px ${color}44;
+          display:flex;align-items:center;justify-content:center;
+        ">
+          ${innerGraphic}
+        </div>
       </div>
     `,
     iconSize: [outerSize, outerSize],
@@ -207,34 +218,53 @@ function buildFlameIcon(anomaly, glowClass, color) {
     popupAnchor: [0, -outerSize / 2],
   });
 
-  FLAME_ICON_CACHE.set(cacheKey, icon);
+  TACTICAL_MARKER_CACHE.set(cacheKey, icon);
   return icon;
 }
 
-// Custom cluster bubble — dark tactical style with a cyan ring, showing the
-// count of hotspots grouped at this zoom level. Bigger clusters get a
-// slightly bigger bubble and the critical-red tint if any member is severe.
+// Color-coded cluster bubble reflecting the dominant fire category in that group!
 function createClusterIcon(cluster) {
-  const count = cluster.getChildCount();
+  const markers = cluster.getAllChildMarkers();
+  const count = markers.length;
   const size = count > 50 ? 46 : count > 15 ? 38 : 30;
-  const hasCritical = cluster
-    .getAllChildMarkers()
-    .some((m) => m.options.__isCritical);
-  const ringColor = hasCritical ? '#FF003C' : '#00F0FF';
+
+  // Determine dominant category and critical status
+  const catCounts = {};
+  let hasCritical = false;
+  markers.forEach((m) => {
+    const a = m.options?.__anomaly;
+    if (a) {
+      const cat = a.category || 'Wild Fire';
+      catCounts[cat] = (catCounts[cat] || 0) + 1;
+      if (Number(a.frp_radiance || 0) > 2000) hasCritical = true;
+    }
+  });
+
+  let dominantCat = 'Wild Fire';
+  let maxCatCount = 0;
+  Object.entries(catCounts).forEach(([cat, cnt]) => {
+    if (cnt > maxCatCount) {
+      maxCatCount = cnt;
+      dominantCat = cat;
+    }
+  });
+
+  const catColor = CATEGORY_COLORS[dominantCat] || '#FF003C';
+  const ringColor = hasCritical ? '#FF003C' : catColor;
 
   return L.divIcon({
     html: `
       <div style="
         width:${size}px;height:${size}px;
         display:flex;align-items:center;justify-content:center;
-        background:rgba(15,23,42,0.9);
-        border:2px solid ${ringColor};
+        background:rgba(18,21,28,0.95);
+        border:2.5px solid ${ringColor};
         border-radius:50%;
         color:${ringColor};
         font-family:'IBM Plex Mono', monospace;
         font-weight:700;
         font-size:${count > 50 ? 13 : 11}px;
-        box-shadow:0 0 10px ${ringColor}66;
+        box-shadow:0 0 12px ${ringColor}99, inset 0 0 6px ${ringColor}44;
       ">${count}</div>
     `,
     className: 'tactical-custom-icon',
@@ -242,119 +272,142 @@ function createClusterIcon(cluster) {
   });
 }
 
-function TacticalMap({ anomalies, selectedTarget, setSelectedTarget, searchLocation, layers = {}, onMouseMove, showPowerPlants }) {
-  // WRI Power Plants data — loaded once from static JSON
+export default function TacticalMap({
+  anomalies = [],
+  selectedTarget,
+  setSelectedTarget,
+  searchLocation,
+  layers = {},
+  onMouseMove,
+  showPowerPlants,
+}) {
   const [powerPlants, setPowerPlants] = useState([]);
+  const [basemapMode, setBasemapMode] = useState('dark'); // 'dark' | 'satellite'
 
   useEffect(() => {
     fetch('/data/wri_power_plants.json')
-      .then(res => res.json())
-      .then(data => setPowerPlants(data))
-      .catch(err => console.error('Failed to load power plants:', err));
+      .then((res) => res.json())
+      .then((data) => setPowerPlants(data))
+      .catch((err) => console.error('Failed to load power plants:', err));
   }, []);
 
-  // Dedicated canvas renderer for 861 power-plant dots with auto-precision click tolerance.
-  // tolerance: 18 extends the hit-test radius on canvas so clicking near/around any dot
-  // immediately triggers the popup without requiring pixel-perfect clicking.
   const wriRenderer = useMemo(() => L.canvas({ padding: 0.5, tolerance: 18 }), []);
 
-  // Sensible defaults if a layer key isn't specified — everything visible
-  // except cloud mask (no real Sentinel-2 cloud data connected yet).
   const showFirms = layers.firms !== false;
-  const showIndustrial = layers.industrial !== false;
-  const showRisk = layers.risk !== false;
   const showWorldcover = Boolean(layers.worldcover);
   const showBuffer = Boolean(layers.buffer);
-  // Note: cloudmask has no real effect yet — no free Sentinel-2 L2A cloud
-  // mask source is wired in. The checkbox toggles, but nothing changes on
-  // the map for it currently.
-
-  const getMarkerColor = (anomaly) => {
-    if (anomaly.category === 'Wildfire Front' || anomaly.frp_radiance > 2000) return '#FF003C';
-    if (anomaly.category === 'Industrial Process') return '#F59E0B';
-    if (anomaly.category === 'Gas Flare') return '#00F0FF';
-    if (anomaly.category === 'Crop Residue Burning') return '#22C55E';
-    return '#94A3B8';
-  };
-
-  const getMarkerRadius = (anomaly) => {
-    if (anomaly.frp_radiance > 2000) return 6;
-    if (anomaly.frp_radiance > 500) return 5;
-    return 4;
-  };
-
-  const getGlowClass = (anomaly) => {
-    if (anomaly.category === 'Wildfire Front') return 'marker-critical';
-    if (anomaly.category === 'Gas Flare') return 'marker-gasflare';
-    if (anomaly.category === 'Crop Residue Burning') return 'marker-crop';
-    return '';
-  };
+  const showRisk = layers.risk !== false;
 
   const hasData = anomalies && anomalies.length > 0;
 
-  // Split into three groups: flame-icon anomalies get clustered (gated by
-  // the "FIRMS Thermal Hotspots" toggle); Industrial Process dots are gated
-  // by their own toggle; anything else (Unclassified) follows the FIRMS
-  // toggle since it's part of the same raw satellite feed.
-  const flameAnomalies = hasData && showFirms ? anomalies.filter((a) => FLAME_IMAGES[a.category]) : [];
-  const industrialAnomalies =
-    hasData && showIndustrial ? anomalies.filter((a) => a.category === 'Industrial Process') : [];
-  const unclassifiedAnomalies =
-    hasData && showFirms ? anomalies.filter((a) => !FLAME_IMAGES[a.category] && a.category !== 'Industrial Process') : [];
+  // Compute category counts for live legend
+  const categoryCounts = useMemo(() => {
+    const counts = {};
+    anomalies.forEach((a) => {
+      const cat = a.category || 'Wild Fire';
+      counts[cat] = (counts[cat] || 0) + 1;
+    });
+    return counts;
+  }, [anomalies]);
 
-  const renderPopup = (anomaly, isCritical) => (
-    <Popup className="tactical-popup font-mono text-[10px]">
-      <div 
-        className="bg-[#0F172A] p-2.5 border border-slate-700 text-slate-300 min-w-[210px]"
-      >
-        <div className="flex items-center justify-between gap-2 mb-1">
-          <div className="font-bold text-white">#{anomaly.id} {anomaly.name}</div>
-          <span className="text-[8px] px-1 py-0.5 rounded font-mono font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
-            HOTSPOT
-          </span>
-        </div>
-        {isCritical && (
-          <div className="text-red-400 font-bold mb-1 border border-red-500/50 bg-red-500/10 px-1 inline-block">
-            CRITICAL SEVERITY
+  const renderPopup = (anomaly, isCritical) => {
+    const cat = anomaly.category || 'Wild Fire';
+    const catColor = CATEGORY_COLORS[cat] || '#FF003C';
+
+    return (
+      <Popup className="tactical-popup font-mono text-[10px]">
+        <div className="bg-[#181C26] p-2.5 border border-slate-700 text-slate-300 min-w-[220px]">
+          {/* Header bar colored by category */}
+          <div className="flex items-center justify-between gap-2 mb-1.5 pb-1 border-b border-slate-700/60">
+            <span
+              className="text-[8px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider"
+              style={{ backgroundColor: `${catColor}25`, color: catColor, border: `1px solid ${catColor}60` }}
+            >
+              {cat}
+            </span>
+            <span className="text-[8px] font-bold text-slate-400 font-mono">
+              #{anomaly.id}
+            </span>
           </div>
-        )}
-        <div className="text-slate-400 text-[9px] mb-1">
-          LAT {Number(anomaly.latitude).toFixed(4)}°, LON {Number(anomaly.longitude).toFixed(4)}°
+
+          <div className="font-bold text-white text-[11px] mb-1 leading-snug">
+            {anomaly.name || anomaly.facility_name || 'THERMAL ANOMALY'}
+          </div>
+
+          <div className="text-slate-400 text-[9px] mb-1 font-mono">
+            LAT {Number(anomaly.latitude).toFixed(4)}°, LON {Number(anomaly.longitude).toFixed(4)}°
+          </div>
+
+          <div className="text-slate-300 text-[9.5px]">
+            FRP RADIANCE: <span className="font-bold font-mono" style={{ color: catColor }}>{anomaly.frp_radiance} MW</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedTarget(anomaly);
+            }}
+            className="w-full mt-2.5 py-1 px-2 hover:brightness-125 text-white border text-[9px] font-bold rounded flex items-center justify-center gap-1.5 transition-all uppercase cursor-pointer"
+            style={{
+              backgroundColor: `${catColor}30`,
+              borderColor: `${catColor}70`,
+            }}
+          >
+            <Crosshair size={11} style={{ color: catColor }} />
+            <span>LOAD INTO DOSSIER</span>
+          </button>
         </div>
-        <div className="text-slate-300 text-[9.5px]">
-          FRP: <span className="text-cyan-400 font-bold font-mono">{anomaly.frp_radiance} MW</span>
-        </div>
-        <div className="text-cyan-400 mt-1 uppercase font-bold text-[9px]">
-          {anomaly.category || 'UNKNOWN'}
-        </div>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setSelectedTarget(anomaly);
-          }}
-          className="w-full mt-2.5 py-1 px-2 bg-cyan-500/20 hover:bg-cyan-500/40 active:bg-cyan-500/60 text-cyan-300 hover:text-white border border-cyan-500/50 text-[9px] font-bold rounded flex items-center justify-center gap-1.5 transition-colors uppercase cursor-pointer"
-        >
-          <Crosshair size={11} className="text-cyan-400" />
-          <span>LOAD INTO DOSSIER</span>
-        </button>
-      </div>
-    </Popup>
-  );
+      </Popup>
+    );
+  };
 
   return (
     <div className="h-full w-full relative z-0">
+      {/* Tactical Basemap Switcher */}
+      <div className="absolute top-2 right-2 z-[1000] flex items-center bg-[#181C26]/90 border border-cyan-500/30 rounded p-0.5 shadow-xl backdrop-blur-sm select-none">
+        <button
+          onClick={() => setBasemapMode('dark')}
+          className={`flex items-center gap-1 px-2.5 py-1 text-[9px] font-bold rounded transition-colors ${
+            basemapMode === 'dark'
+              ? 'bg-cyan-500/30 text-cyan-300 border border-cyan-500/50'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <Radio size={10} />
+          DARK OPS
+        </button>
+        <button
+          onClick={() => setBasemapMode('satellite')}
+          className={`flex items-center gap-1 px-2.5 py-1 text-[9px] font-bold rounded transition-colors ${
+            basemapMode === 'satellite'
+              ? 'bg-cyan-500/30 text-cyan-300 border border-cyan-500/50'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <Layers size={10} />
+          SATELLITE
+        </button>
+      </div>
+
       <MapContainer
         center={[20.5, 82.0]}
         zoom={6}
-        className="h-full w-full bg-[#070A0F]"
+        className="h-full w-full bg-[#12151C]"
         zoomControl={false}
         attributionControl={false}
       >
-        <TileLayer url={TILE_URL} />
-        <TileLayer url={LABELS_URL} />
-        <ZoomControl position="bottomleft" />
+        {/* Dynamic Basemap selection */}
+        {basemapMode === 'dark' ? (
+          <TileLayer url={DARK_MATTER_URL} />
+        ) : (
+          <>
+            <TileLayer url={SATELLITE_TILE_URL} />
+            <TileLayer url={SATELLITE_LABELS_URL} />
+          </>
+        )}
 
+        <ZoomControl position="bottomleft" />
         <CursorTracker onMouseMove={onMouseMove} />
 
         {hasData && <FitBoundsOnData anomalies={anomalies} />}
@@ -363,70 +416,14 @@ function TacticalMap({ anomalies, selectedTarget, setSelectedTarget, searchLocat
         {searchLocation && (
           <Marker position={[searchLocation.lat, searchLocation.lon]} icon={searchPinIcon()}>
             <Popup className="tactical-popup font-mono text-[10px]">
-              <div className="bg-[#0F172A] p-2 border border-slate-700 text-slate-300 max-w-[200px]">
+              <div className="bg-[#181C26] p-2 border border-slate-700 text-slate-300 max-w-[200px]">
                 {searchLocation.label}
               </div>
             </Popup>
           </Marker>
         )}
 
-        {/* Clustered flame markers: wildfire, gas flare, crop burn */}
-        <MarkerClusterGroup
-          chunkedLoading
-          iconCreateFunction={createClusterIcon}
-          maxClusterRadius={55}
-          spiderfyOnMaxZoom
-          showCoverageOnHover={false}
-          onClick={(e) => {
-            // When a cluster bubble is clicked, immediately target the highest FRP anomaly in the group
-            if (e?.layer?.getAllChildMarkers) {
-              const children = e.layer.getAllChildMarkers();
-              if (children && children.length > 0) {
-                let top = children[0]?.options?.__anomaly;
-                for (const m of children) {
-                  const a = m?.options?.__anomaly;
-                  if (a && (!top || (Number(a.frp_radiance) || 0) > (Number(top.frp_radiance) || 0))) {
-                    top = a;
-                  }
-                }
-                if (top) setSelectedTarget(top);
-              }
-            }
-          }}
-        >
-          {flameAnomalies.map((anomaly) => {
-            const isCritical = anomaly.frp_radiance > 2000;
-            return (
-              <React.Fragment key={anomaly.id}>
-                {/* Priority Risk Shading: extra pulsing red ring on critical
-                    hotspots. interactive={false} ensures it never blocks clicks to the marker! */}
-                {isCritical && showRisk && (
-                  <CircleMarker
-                    center={[anomaly.latitude, anomaly.longitude]}
-                    radius={26}
-                    interactive={false}
-                    pathOptions={{ color: '#FF003C', fillColor: '#FF003C', fillOpacity: 0.12, weight: 1.5, dashArray: '3,4', interactive: false }}
-                  />
-                )}
-                <Marker
-                  position={[anomaly.latitude, anomaly.longitude]}
-                  icon={buildFlameIcon(anomaly, getGlowClass(anomaly), getMarkerColor(anomaly))}
-                  eventHandlers={{
-                    click: () => {
-                      setSelectedTarget(anomaly);
-                    },
-                  }}
-                  __anomaly={anomaly}
-                  __isCritical={isCritical}
-                >
-                  {renderPopup(anomaly, isCritical)}
-                </Marker>
-              </React.Fragment>
-            );
-          })}
-        </MarkerClusterGroup>
-
-        {/* ESA WorldCover 10m — real land-cover WMS overlay */}
+        {/* ESA WorldCover 10m Overlay */}
         {showWorldcover && (
           <WMSTileLayer
             url={WORLDCOVER_WMS_URL}
@@ -437,132 +434,132 @@ function TacticalMap({ anomalies, selectedTarget, setSelectedTarget, searchLocat
           />
         )}
 
-        {/* Industrial Process — plain amber dots, gated by its own toggle */}
-        {industrialAnomalies.map((anomaly) => (
-          <CircleMarker
-            key={anomaly.id}
-            center={[anomaly.latitude, anomaly.longitude]}
-            radius={getMarkerRadius(anomaly)}
-            pathOptions={{
-              color: getMarkerColor(anomaly),
-              fillColor: getMarkerColor(anomaly),
-              fillOpacity: 0.4,
-              weight: 2,
+        {/* Clustered Color-Coded Hotspot Markers (All 5 Categories) */}
+        {showFirms && (
+          <MarkerClusterGroup
+            chunkedLoading
+            iconCreateFunction={createClusterIcon}
+            maxClusterRadius={38}
+            spiderfyOnMaxZoom
+            showCoverageOnHover={false}
+            onClick={(e) => {
+              if (e?.layer?.getAllChildMarkers) {
+                const children = e.layer.getAllChildMarkers();
+                if (children && children.length > 0) {
+                  let top = children[0]?.options?.__anomaly;
+                  for (const m of children) {
+                    const a = m?.options?.__anomaly;
+                    if (a && (!top || (Number(a.frp_radiance) || 0) > (Number(top.frp_radiance) || 0))) {
+                      top = a;
+                    }
+                  }
+                  if (top) setSelectedTarget(top);
+                }
+              }
             }}
-            eventHandlers={{
-              click: () => {
-                setSelectedTarget(anomaly);
-              },
-            }}
-            __anomaly={anomaly}
           >
-            {renderPopup(anomaly, false)}
-          </CircleMarker>
-        ))}
+            {anomalies.map((anomaly) => {
+              const isCritical = Number(anomaly.frp_radiance || 0) > 2000;
+              const cat = anomaly.category || 'Wild Fire';
+              const catColor = CATEGORY_COLORS[cat] || '#FF003C';
 
-        {/* Unclassified — plain grey dots, follows the FIRMS toggle */}
-        {unclassifiedAnomalies.map((anomaly) => (
-          <CircleMarker
-            key={anomaly.id}
-            center={[anomaly.latitude, anomaly.longitude]}
-            radius={getMarkerRadius(anomaly)}
-            pathOptions={{
-              color: getMarkerColor(anomaly),
-              fillColor: getMarkerColor(anomaly),
-              fillOpacity: 0.4,
-              weight: 2,
-            }}
-            eventHandlers={{
-              click: () => {
-                setSelectedTarget(anomaly);
-              },
-            }}
-            __anomaly={anomaly}
-          >
-            {renderPopup(anomaly, false)}
-          </CircleMarker>
-        ))}
+              return (
+                <React.Fragment key={anomaly.id}>
+                  {/* Priority Risk Shading for critical hotspots */}
+                  {isCritical && showRisk && (
+                    <CircleMarker
+                      center={[anomaly.latitude, anomaly.longitude]}
+                      radius={26}
+                      interactive={false}
+                      pathOptions={{
+                        color: catColor,
+                        fillColor: catColor,
+                        fillOpacity: 0.15,
+                        weight: 1.5,
+                        dashArray: '3,4',
+                        interactive: false,
+                      }}
+                    />
+                  )}
+                  <Marker
+                    position={[anomaly.latitude, anomaly.longitude]}
+                    icon={buildTacticalMarker(anomaly)}
+                    eventHandlers={{
+                      click: () => {
+                        setSelectedTarget(anomaly);
+                      },
+                    }}
+                    __anomaly={anomaly}
+                    __isCritical={isCritical}
+                  >
+                    {renderPopup(anomaly, isCritical)}
+                  </Marker>
+                </React.Fragment>
+              );
+            })}
+          </MarkerClusterGroup>
+        )}
 
-        {/* Population Density Buffer — 5km radius warning ring around every
-            critical hotspot. interactive={false} ensures it never blocks clicks! */}
+        {/* Population Density 5km Hazard Buffer */}
         {showBuffer &&
           hasData &&
           anomalies
-            .filter((a) => a.frp_radiance > 2000)
+            .filter((a) => Number(a.frp_radiance || 0) > 2000)
             .map((a) => (
               <Circle
                 key={`buffer-${a.id}`}
                 center={[a.latitude, a.longitude]}
                 radius={5000}
                 interactive={false}
-                pathOptions={{ color: '#F59E0B', fillColor: '#F59E0B', fillOpacity: 0.06, weight: 1, dashArray: '6,6', interactive: false }}
+                pathOptions={{
+                  color: '#F59E0B',
+                  fillColor: '#F59E0B',
+                  fillOpacity: 0.05,
+                  weight: 1,
+                  dashArray: '6,6',
+                  interactive: false,
+                }}
               />
             ))}
 
-        {/* WRI Power Plants — amber dots, canvas-rendered for performance */}
-        {showPowerPlants && powerPlants.map((plant, idx) => (
-          <CircleMarker
-            key={`wri-${idx}`}
-            center={[plant.latitude, plant.longitude]}
-            radius={5}
-            pathOptions={{ color: '#D97706', fillColor: '#F59E0B', fillOpacity: 0.85, weight: 1.5, renderer: wriRenderer }}
-          >
-            <Popup className="wri-popup font-mono">
-              <div>
-                {/* Amber Header Bar */}
-                <div style={{ background: '#F59E0B', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '14px' }}>⚡</span>
-                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Power Plant</span>
-                </div>
-                {/* Dark Body */}
-                <div style={{ background: '#0F172A', padding: '12px' }}>
-                  {/* Plant Name */}
-                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#fff', marginBottom: '10px', lineHeight: 1.3 }}>{plant.name}</div>
-                  {/* Capacity & Fuel Grid */}
-                  <div style={{ display: 'flex', gap: '24px', marginBottom: '10px' }}>
-                    <div>
-                      <div style={{ fontSize: '8px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>Capacity (MW)</div>
-                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#F59E0B', fontFamily: 'monospace' }}>{plant.capacity_mw?.toLocaleString()} MW</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '8px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>Primary Fuel</div>
-                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#fff' }}>{plant.primary_fuel}</div>
+        {/* WRI Power Plants Overlay */}
+        {showPowerPlants &&
+          powerPlants.map((plant, idx) => (
+            <CircleMarker
+              key={`wri-${idx}`}
+              center={[plant.latitude, plant.longitude]}
+              radius={4}
+              pathOptions={{
+                color: '#F59E0B',
+                fillColor: '#FCD34D',
+                fillOpacity: 0.45,
+                opacity: 0.6,
+                weight: 1,
+                renderer: wriRenderer,
+              }}
+            >
+              <Popup className="wri-popup font-mono">
+                <div>
+                  <div style={{ background: '#F59E0B', padding: '6px 10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '13px' }}>⚡</span>
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: '#0F172A', textTransform: 'uppercase' }}>
+                      Power Plant
+                    </span>
+                  </div>
+                  <div style={{ background: '#181C26', padding: '10px', fontSize: '11px', color: '#fff' }}>
+                    <div style={{ fontWeight: 700, marginBottom: '6px' }}>{plant.name}</div>
+                    <div style={{ color: '#94A3B8', fontSize: '9.5px' }}>
+                      FUEL: <span style={{ color: '#FCD34D' }}>{plant.primary_fuel || 'Thermal'}</span> | CAPACITY: {plant.capacity_mw || 0} MW
                     </div>
                   </div>
-                  {/* Coordinates */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '9px', color: '#94a3b8' }}>
-                    <span style={{ color: '#FF003C' }}>📍</span>
-                    <span style={{ fontFamily: 'monospace' }}>{plant.latitude}, {plant.longitude}</span>
-                  </div>
                 </div>
-              </div>
-            </Popup>
-          </CircleMarker>
-        ))}
-
-        {/* Selected target highlight - interactive={false} so it never intercepts clicks */}
-        {selectedTarget && (
-          <CircleMarker
-            center={[selectedTarget.latitude, selectedTarget.longitude]}
-            radius={20}
-            interactive={false}
-            pathOptions={{ color: '#00F0FF', fillColor: 'transparent', weight: 1, dashArray: '4, 4', interactive: false }}
-            className="animate-spin-slow pointer-events-none"
-          />
-        )}
+              </Popup>
+            </CircleMarker>
+          ))}
       </MapContainer>
 
-      <MapLegend />
-
-      {!hasData && (
-        <div className="absolute inset-0 z-[999] flex items-center justify-center pointer-events-none">
-          <span className="text-[10px] font-mono text-slate-500 tracking-wider uppercase bg-[#070A0F]/70 px-3 py-1.5 border border-slate-700/30 rounded">
-            NO ANOMALIES IN FEED
-          </span>
-        </div>
-      )}
+      {/* Live Map Legend */}
+      <MapLegend counts={categoryCounts} />
     </div>
   );
 }
-
-export default React.memo(TacticalMap);

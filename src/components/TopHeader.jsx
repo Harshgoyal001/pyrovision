@@ -11,12 +11,24 @@ const TopHeader = ({ anomalies, stats, onSearchLocation, onSelectAnomaly }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const debounceRef = useRef(null);
   const wrapperRef = useRef(null);
+  const searchInputRef = useRef(null);
 
   useEffect(() => {
     const timer = setInterval(() => {
       setTime(new Date());
     }, 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey && e.key === 'k') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   // Two search modes based on what's typed:
@@ -116,6 +128,17 @@ const TopHeader = ({ anomalies, stats, onSearchLocation, onSelectAnomaly }) => {
   // Real critical count from stats (no more hardcoded "1 ALERT").
   const criticalCount = stats?.criticalCount || 0;
   const hasCritical = criticalCount > 0;
+  const totalCount = stats?.total || 0;
+
+  let defconLevel = 'DEFCON-4';
+  if (criticalCount >= 5) defconLevel = 'DEFCON-1';
+  else if (criticalCount >= 1) defconLevel = 'DEFCON-2';
+  else if (totalCount > 0) defconLevel = 'DEFCON-3';
+
+  let defconStyle = 'bg-green-600/30 border-green-500/50 text-green-400';
+  if (defconLevel === 'DEFCON-1') defconStyle = 'bg-red-600/30 border-red-500/50 text-red-400';
+  else if (defconLevel === 'DEFCON-2') defconStyle = 'bg-orange-600/30 border-orange-500/50 text-orange-400';
+  else if (defconLevel === 'DEFCON-3') defconStyle = 'bg-yellow-600/30 border-yellow-500/50 text-yellow-400';
 
   // Clicking the Early Warning button jumps the map to the single most
   // severe active hotspot (highest FRP among critical ones).
@@ -190,7 +213,7 @@ const TopHeader = ({ anomalies, stats, onSearchLocation, onSelectAnomaly }) => {
   };
 
   return (
-    <header className="w-full h-[52px] bg-[#070A0F] border-b border-cyan-500/10 flex items-center px-3 gap-3 text-[10px] tracking-wide font-mono shrink-0 select-none">
+    <header className="w-full h-[52px] bg-[#12151C] border-b border-cyan-500/10 flex items-center px-3 gap-3 text-[10px] tracking-wide font-mono shrink-0 select-none">
       {/* 1. PYROVISION Logo block */}
       <div className="flex flex-col justify-center">
         <div className="flex items-center gap-2">
@@ -214,13 +237,14 @@ const TopHeader = ({ anomalies, stats, onSearchLocation, onSelectAnomaly }) => {
 
       {/* 3. Search bar */}
       <div ref={wrapperRef} className="relative">
-        <div className="flex items-center gap-1 border border-slate-700 rounded px-2 py-1 h-8 bg-slate-900/40 focus-within:border-cyan-500/50">
+        <div className="flex items-center gap-1 border border-slate-700 rounded px-2 py-1 h-8 bg-[#202534]/50 focus-within:border-cyan-500/50">
           {searching ? (
             <Loader2 size={12} className="text-cyan-400 animate-spin" />
           ) : (
             <Search size={12} className="text-slate-400" />
           )}
           <input
+            ref={searchInputRef}
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -232,7 +256,7 @@ const TopHeader = ({ anomalies, stats, onSearchLocation, onSelectAnomaly }) => {
         </div>
 
         {showDropdown && suggestions.length > 0 && (
-          <div className="absolute top-9 left-0 w-64 bg-[#0F172A] border border-slate-700 rounded shadow-lg z-[2000] max-h-64 overflow-y-auto">
+          <div className="absolute top-9 left-0 w-64 bg-[#181C26] border border-slate-700 rounded shadow-lg z-[2000] max-h-64 overflow-y-auto">
             {suggestions.map((item) => {
               if (item.type === 'anomaly') {
                 const a = item.anomaly;
@@ -264,7 +288,7 @@ const TopHeader = ({ anomalies, stats, onSearchLocation, onSelectAnomaly }) => {
         )}
 
         {showDropdown && !searching && query.trim().length >= 3 && suggestions.length === 0 && (
-          <div className="absolute top-9 left-0 w-64 bg-[#0F172A] border border-slate-700 rounded shadow-lg z-[2000] px-2.5 py-1.5 text-[10px] text-slate-500">
+          <div className="absolute top-9 left-0 w-64 bg-[#181C26] border border-slate-700 rounded shadow-lg z-[2000] px-2.5 py-1.5 text-[10px] text-slate-500">
             No location found
           </div>
         )}
@@ -295,17 +319,19 @@ const TopHeader = ({ anomalies, stats, onSearchLocation, onSelectAnomaly }) => {
       <button
         onClick={handleExportPDF}
         disabled={!anomalies || anomalies.length === 0}
-        className="tactical-btn flex items-center justify-center gap-1.5 h-8 px-3 disabled:opacity-40 disabled:cursor-not-allowed"
+        className="tactical-btn flex items-center justify-center gap-1.5 h-8 px-3 disabled:opacity-40 disabled:cursor-not-allowed border border-slate-700 hover:border-cyan-500/50 hover:bg-cyan-900/20 rounded text-slate-300 hover:text-cyan-300 transition-colors"
       >
         <FileDown size={14} />
-        <span className="uppercase">EXPORT INTEL PDF</span>
+        <span className="uppercase font-semibold">EXPORT INTEL PDF</span>
       </button>
 
       {/* 7. Clock section */}
       <div className="text-right border-l border-slate-700/50 pl-3 flex flex-col justify-center min-w-[140px]">
         <div className="flex items-center justify-end gap-2 mb-0.5">
           <span className="text-cyan-400 text-[10px] whitespace-nowrap uppercase">UTC+5:30 IST /</span>
-          <span className="bg-red-600/30 border border-red-500/50 text-red-400 px-1.5 rounded text-[9px] font-bold uppercase">DEFCON-2</span>
+          <span className={`border px-1.5 rounded text-[9px] font-bold uppercase ${defconStyle}`}>
+            {defconLevel}
+          </span>
         </div>
         <div className="flex items-center justify-end">
           <span className="text-cyan-100 text-sm font-bold leading-none tracking-widest">{formatTime(time)}</span>

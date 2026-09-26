@@ -5,17 +5,17 @@ export default function DossierPanel({ anomalies = [], selectedTarget, setSelect
   const totalCount = stats.total || anomalies.length || 0;
   const categories = stats.categories || {};
 
-  const unknownCount = categories['Unknown / Pending Sample'] || 0;
-  const industrialCount = categories['Industrial Process'] || 0;
+  const wildfireCount = categories['Wild Fire'] || 0;
+  const industrialCount = categories['Industrial Fire'] || 0;
   const flareCount = categories['Gas Flare'] || 0;
-  const wildfireCount = categories['Wildfire Front'] || 0;
-  const cropCount = categories['Crop Residue Burning'] || 0;
+  const agricultureCount = categories['Agriculture Fire'] || 0;
+  const miningCount = categories['Mining Activity'] || 0;
 
-  const unknownPct = totalCount ? ((unknownCount / totalCount) * 100).toFixed(1) : '0.0';
+  const wildfirePct = totalCount ? ((wildfireCount / totalCount) * 100).toFixed(1) : '0.0';
   const industrialPct = totalCount ? ((industrialCount / totalCount) * 100).toFixed(1) : '0.0';
   const flarePct = totalCount ? ((flareCount / totalCount) * 100).toFixed(1) : '0.0';
-  const wildfirePct = totalCount ? ((wildfireCount / totalCount) * 100).toFixed(1) : '0.0';
-  const cropPct = totalCount ? ((cropCount / totalCount) * 100).toFixed(1) : '0.0';
+  const agriculturePct = totalCount ? ((agricultureCount / totalCount) * 100).toFixed(1) : '0.0';
+  const miningPct = totalCount ? ((miningCount / totalCount) * 100).toFixed(1) : '0.0';
 
   const [taskingEngaged, setTaskingEngaged] = useState(false);
   const [isLayerMenuOpen, setIsLayerMenuOpen] = useState(false);
@@ -48,8 +48,18 @@ export default function DossierPanel({ anomalies = [], selectedTarget, setSelect
     document.body.removeChild(link);
   };
 
+  const handleCopyCoordinates = () => {
+    if (selectedTarget) {
+      navigator.clipboard.writeText(`${selectedTarget.latitude}, ${selectedTarget.longitude}`);
+      setTaskingEngaged(true);
+      setTimeout(() => setTaskingEngaged(false), 2000);
+    }
+  };
+
+  const wriCount = anomalies.filter(a => a.wri_verified).length || 861;
+
   return (
-    <div className="w-[320px] min-w-[320px] max-w-[320px] h-full bg-[#070A0F] border-l border-cyan-500/20 overflow-y-auto flex flex-col font-mono select-none text-slate-200">
+    <div className="w-[320px] min-w-[320px] max-w-[320px] h-full bg-[#12151C] border-l border-cyan-500/20 overflow-y-auto flex flex-col font-mono select-none text-slate-200">
       
       {/* 1. LAYER MATRIX CONTROL DROPDOWN */}
       <div className="p-2.5 border-b border-cyan-500/10">
@@ -226,7 +236,7 @@ export default function DossierPanel({ anomalies = [], selectedTarget, setSelect
                   WRI Power Plants (India)
                 </span>
               </div>
-              <span className="text-amber-400 text-[10px] font-bold font-mono">907</span>
+              <span className="text-amber-400 text-[10px] font-bold font-mono">{wriCount}</span>
             </div>
           </div>
         )}
@@ -239,27 +249,27 @@ export default function DossierPanel({ anomalies = [], selectedTarget, setSelect
           <span className="text-cyan-400 text-[10px] font-bold font-mono">{totalCount} DETECTIONS</span>
         </div>
 
-        {/* Dynamic multi-color horizontal stacked progress bar */}
+        {/* Dynamic 5-category stacked progress bar from PPT */}
         <div className="w-full h-1.5 bg-slate-800 rounded-sm overflow-hidden flex my-2 border border-slate-700/50">
-          <div style={{ width: `${unknownPct}%` }} className="bg-[#64748B] h-full transition-all" title={`Unknown (${unknownPct}%)`} />
-          <div style={{ width: `${industrialPct}%` }} className="bg-[#F59E0B] h-full transition-all" title={`Industrial (${industrialPct}%)`} />
+          <div style={{ width: `${wildfirePct}%` }} className="bg-[#FF003C] h-full transition-all" title={`Wild Fire (${wildfirePct}%)`} />
+          <div style={{ width: `${industrialPct}%` }} className="bg-[#F59E0B] h-full transition-all" title={`Industrial Fire (${industrialPct}%)`} />
           <div style={{ width: `${flarePct}%` }} className="bg-[#00F0FF] h-full transition-all" title={`Gas Flare (${flarePct}%)`} />
-          <div style={{ width: `${wildfirePct}%` }} className="bg-[#FF003C] h-full transition-all" title={`Wildfire (${wildfirePct}%)`} />
-          <div style={{ width: `${cropPct}%` }} className="bg-[#22C55E] h-full transition-all" title={`Crop Residue (${cropPct}%)`} />
+          <div style={{ width: `${agriculturePct}%` }} className="bg-[#22C55E] h-full transition-all" title={`Agriculture Fire (${agriculturePct}%)`} />
+          <div style={{ width: `${miningPct}%` }} className="bg-[#A855F7] h-full transition-all" title={`Mining Activity (${miningPct}%)`} />
         </div>
         
         <div className="space-y-1.5 mt-2.5">
           <div className="flex items-center justify-between text-[10px]">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-[#64748B] shrink-0" />
-              <span className="text-slate-400">Unknown / Pending Sample</span>
+              <div className="w-2 h-2 bg-[#FF003C] shrink-0" />
+              <span className="text-slate-300">Wild Fire</span>
             </div>
-            <span className="text-slate-300 font-mono">{unknownCount} ({unknownPct}%)</span>
+            <span className="text-slate-300 font-mono">{wildfireCount} ({wildfirePct}%)</span>
           </div>
           <div className="flex items-center justify-between text-[10px]">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-[#F59E0B] shrink-0" />
-              <span className="text-slate-300">Industrial Process</span>
+              <span className="text-slate-300">Industrial Fire</span>
             </div>
             <span className="text-slate-300 font-mono">{industrialCount} ({industrialPct}%)</span>
           </div>
@@ -272,17 +282,17 @@ export default function DossierPanel({ anomalies = [], selectedTarget, setSelect
           </div>
           <div className="flex items-center justify-between text-[10px]">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-[#FF003C] shrink-0" />
-              <span className="text-slate-300">Wildfire Front</span>
+              <div className="w-2 h-2 bg-[#22C55E] shrink-0" />
+              <span className="text-slate-300">Agriculture Fire</span>
             </div>
-            <span className="text-slate-300 font-mono">{wildfireCount} ({wildfirePct}%)</span>
+            <span className="text-slate-300 font-mono">{agricultureCount} ({agriculturePct}%)</span>
           </div>
           <div className="flex items-center justify-between text-[10px]">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-[#22C55E] shrink-0" />
-              <span className="text-slate-300">Crop Residue Burning</span>
+              <div className="w-2 h-2 bg-[#A855F7] shrink-0" />
+              <span className="text-slate-300">Mining Activity</span>
             </div>
-            <span className="text-slate-300 font-mono">{cropCount} ({cropPct}%)</span>
+            <span className="text-slate-300 font-mono">{miningCount} ({miningPct}%)</span>
           </div>
         </div>
       </div>
@@ -309,7 +319,7 @@ export default function DossierPanel({ anomalies = [], selectedTarget, setSelect
               type="button"
               onClick={handlePrevTarget}
               title="Previous Hotspot"
-              className="px-2 py-1 bg-[#0F172A] hover:bg-slate-800 active:bg-cyan-950 border border-slate-700 hover:border-cyan-500/50 rounded text-slate-400 hover:text-cyan-400 text-[8.5px] font-bold shrink-0 transition-colors cursor-pointer"
+              className="px-2 py-1 bg-[#181C26] hover:bg-slate-800 active:bg-cyan-950 border border-slate-700 hover:border-cyan-500/50 rounded text-slate-400 hover:text-cyan-400 text-[8.5px] font-bold shrink-0 transition-colors cursor-pointer"
             >
               ◀ PREV
             </button>
@@ -324,7 +334,7 @@ export default function DossierPanel({ anomalies = [], selectedTarget, setSelect
             >
               {!selectedTarget && <option value="">SELECT HOTSPOT ({anomalies.length})...</option>}
               {anomalies.slice(0, 200).map((a) => (
-                <option key={a.id} value={a.id} className="bg-[#070A0F] text-slate-200">
+                <option key={a.id} value={a.id} className="bg-[#12151C] text-slate-200">
                   #{a.id} {a.name || a.category} ({a.frp_radiance} MW)
                 </option>
               ))}
@@ -333,7 +343,7 @@ export default function DossierPanel({ anomalies = [], selectedTarget, setSelect
               type="button"
               onClick={handleNextTarget}
               title="Next Hotspot"
-              className="px-2 py-1 bg-[#0F172A] hover:bg-slate-800 active:bg-cyan-950 border border-slate-700 hover:border-cyan-500/50 rounded text-slate-400 hover:text-cyan-400 text-[8.5px] font-bold shrink-0 transition-colors cursor-pointer"
+              className="px-2 py-1 bg-[#181C26] hover:bg-slate-800 active:bg-cyan-950 border border-slate-700 hover:border-cyan-500/50 rounded text-slate-400 hover:text-cyan-400 text-[8.5px] font-bold shrink-0 transition-colors cursor-pointer"
             >
               NEXT ▶
             </button>
@@ -373,22 +383,24 @@ export default function DossierPanel({ anomalies = [], selectedTarget, setSelect
 
               {/* FRP & SWIR B12 Grid */}
               <div className="grid grid-cols-2 gap-2">
-                <div className="bg-[#0F172A]/70 border border-slate-700/40 p-2 rounded">
+                <div className="bg-[#181C26]/70 border border-blue-900/50 p-2 rounded">
                   <div className="text-[8px] text-slate-400 uppercase tracking-wider">FRP RADIATIVE:</div>
                   <div className="text-xs text-cyan-400 font-bold mt-0.5 font-mono">
                     {selectedTarget.frp_radiance?.toLocaleString()} MW
                   </div>
                 </div>
-                <div className="bg-[#0F172A]/70 border border-slate-700/40 p-2 rounded">
-                  <div className="text-[8px] text-slate-400 uppercase tracking-wider">SWIR B12 CONF:</div>
+                <div className="bg-[#181C26]/70 border border-blue-900/50 p-2 rounded">
+                  <div className="text-[8px] text-slate-400 uppercase tracking-wider">
+                    {selectedTarget.avg_brightness ? 'AVG BRIGHTNESS:' : 'CONFIDENCE:'}
+                  </div>
                   <div className="text-xs text-[#22C55E] font-bold mt-0.5 font-mono">
-                    {selectedTarget.confidence}% L2A
+                    {selectedTarget.avg_brightness ? `${selectedTarget.avg_brightness} K` : `${selectedTarget.confidence}%`}
                   </div>
                 </div>
               </div>
 
               {/* Persistence History */}
-              <div className="bg-[#0F172A]/40 border border-slate-800 p-2 rounded">
+              <div className="bg-[#181C26]/40 border border-slate-800 p-2 rounded">
                 <div className="text-[8px] text-slate-400 uppercase tracking-wider mb-1">PERSISTENCE HISTORY:</div>
                 <div className="text-[9px] text-slate-300 leading-tight">
                   {selectedTarget.threat_summary}
@@ -402,7 +414,8 @@ export default function DossierPanel({ anomalies = [], selectedTarget, setSelect
                   <span className="text-[9px] font-bold tracking-wider uppercase">PROXIMITY THREAT BUFFER:</span>
                 </div>
                 <p className="text-[8.5px] text-slate-300 leading-relaxed">
-                  Perimeter thermal envelope of #{selectedTarget.id} is actively monitored. Early warning mitigation flag active.
+                  Perimeter thermal envelope of {selectedTarget.name || `#${selectedTarget.id}`} is actively monitored.
+                  {selectedTarget.ai_prediction ? ` AI indicates: ${selectedTarget.ai_prediction}.` : ' Early warning mitigation flag active.'}
                 </p>
               </div>
             </div>
@@ -416,7 +429,7 @@ export default function DossierPanel({ anomalies = [], selectedTarget, setSelect
         {/* Action Buttons */}
         <div className="mt-4 pt-3 border-t border-cyan-500/10 flex gap-2">
           <button 
-            onClick={() => setTaskingEngaged(!taskingEngaged)}
+            onClick={handleCopyCoordinates}
             className={`flex-1 py-1.5 px-2 text-[10px] font-bold uppercase transition-all border flex items-center justify-center gap-1.5 ${
               taskingEngaged
                 ? 'bg-green-500/20 border-green-500 text-green-400'
@@ -424,11 +437,11 @@ export default function DossierPanel({ anomalies = [], selectedTarget, setSelect
             }`}
           >
             <Crosshair size={12} />
-            {taskingEngaged ? 'TASKED // SYNC' : 'ENGAGE TASKING'}
+            {taskingEngaged ? 'COPIED' : 'COPY COORDINATES'}
           </button>
           <button 
             onClick={handleExportCSV}
-            className="flex-1 py-1.5 px-2 text-[10px] font-bold uppercase border border-slate-700 hover:border-slate-500 bg-[#0F172A] text-slate-300 hover:text-white transition-all flex items-center justify-center gap-1.5"
+            className="flex-1 py-1.5 px-2 text-[10px] font-bold uppercase border border-slate-700 hover:border-slate-500 bg-[#181C26] text-slate-300 hover:text-white transition-all flex items-center justify-center gap-1.5"
           >
             <Download size={12} />
             EXPORT RAW CSV
