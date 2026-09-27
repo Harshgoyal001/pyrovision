@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { RefreshCw, Filter, Download, Flame, MapPin } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { RefreshCw, Filter, Download } from 'lucide-react';
 
 export default function StatisticsView({ anomalies = [], stats = {}, setSelectedTarget, setActiveTab, refetch }) {
   const [filterText, setFilterText] = useState('');
@@ -107,7 +107,7 @@ export default function StatisticsView({ anomalies = [], stats = {}, setSelected
   const getCategoryColor = (category) => {
     switch (category?.toUpperCase()) {
       case 'WILD FIRE':
-        return 'bg-[#FF003C]';
+        return 'bg-[#15803D]';
       case 'INDUSTRIAL FIRE':
         return 'bg-[#F59E0B]';
       case 'GAS FLARE':
@@ -124,7 +124,7 @@ export default function StatisticsView({ anomalies = [], stats = {}, setSelected
   const getCategoryBadgeColor = (category) => {
     switch (category?.toUpperCase()) {
       case 'WILD FIRE':
-        return 'bg-red-500/20 text-red-400 border-red-500/50';
+        return 'bg-emerald-950/40 text-emerald-400 border-emerald-600/50';
       case 'INDUSTRIAL FIRE':
         return 'bg-amber-500/20 text-amber-400 border-amber-500/50';
       case 'GAS FLARE':

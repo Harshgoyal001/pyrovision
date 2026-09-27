@@ -21,7 +21,7 @@ function normalizeAnomaly(row) {
 
   // 5 Precise Categories from PyroVision Technical Pipeline (PPT Step 8):
   // 1. Mining Activity | 2. Gas Flare | 3. Industrial Fire | 4. Agriculture Fire | 5. Wild Fire
-  let category = '';
+  let category;
   const finalClass = String(row.final_classification || '').trim().toLowerCase();
   const prediction = String(row.ai_prediction || '').trim().toLowerCase();
   const lowerName = name.toLowerCase();
@@ -257,7 +257,9 @@ export function useThermalAnomalies() {
   }, [])
 
   useEffect(() => {
-    fetchAnomalies()
+    queueMicrotask(() => {
+      fetchAnomalies()
+    })
 
     if (!supabase) return
 

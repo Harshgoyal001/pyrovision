@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Map, 
   BarChart3, 
@@ -7,10 +7,25 @@ import {
   GitBranch, 
   Shield,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Check
 } from 'lucide-react';
 
 const Sidebar = ({ activeTab, setActiveTab, stats, loading, error, lastFetchedAt, realtimeStatus, layers = {} }) => {
+  // Sliding drawer open/collapsed state
+  const [isOpen, setIsOpen] = useState(true);
+
+  const handleToggle = () => {
+    setIsOpen((prev) => {
+      const next = !prev;
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 320);
+      return next;
+    });
+  };
+
   // Dropdown state for navigation menu
   const [isNavOpen, setIsNavOpen] = useState(false);
   const navDropdownRef = useRef(null);
@@ -28,15 +43,15 @@ const Sidebar = ({ activeTab, setActiveTab, stats, loading, error, lastFetchedAt
 
   // Ticking "time ago" clock so the last-updated label stays fresh without
   // needing a new fetch — re-renders every 5s.
-  const [, forceTick] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const t = setInterval(() => forceTick((n) => n + 1), 5000);
+    const t = setInterval(() => setNow(Date.now()), 5000);
     return () => clearInterval(t);
   }, []);
 
   const timeAgo = (date) => {
     if (!date) return 'NEVER';
-    const secs = Math.floor((Date.now() - date.getTime()) / 1000);
+    const secs = Math.floor((now - date.getTime()) / 1000);
     if (secs < 5) return 'JUST NOW';
     if (secs < 60) return `${secs}S AGO`;
     const mins = Math.floor(secs / 60);
@@ -86,7 +101,33 @@ const Sidebar = ({ activeTab, setActiveTab, stats, loading, error, lastFetchedAt
   const CurrentIcon = currentTab.icon;
 
   return (
-    <div className="w-[260px] min-w-[260px] h-full bg-[#12151C] border-r border-cyan-500/10 flex flex-col overflow-y-auto font-mono">
+    <aside
+      style={{
+        width: '260px',
+        marginLeft: isOpen ? '0px' : '-260px',
+        transition: 'margin-left 350ms cubic-bezier(0.16, 1, 0.3, 1)',
+        willChange: 'margin-left',
+      }}
+      className="relative h-full bg-[#12151C] border-r border-cyan-500/20 flex flex-col font-mono shrink-0 z-30 select-none"
+    >
+      {/* Sliding Drawer Toggle Handle (Glides continuously on the right edge) */}
+      <button
+        type="button"
+        onClick={handleToggle}
+        className="absolute top-1/2 -translate-y-1/2 right-0 translate-x-full z-50 flex items-center justify-center w-5 h-14 bg-[#181C26] border border-l-0 border-cyan-500/50 hover:border-cyan-300 text-cyan-400 rounded-r shadow-[4px_0_15px_rgba(0,240,255,0.25)] transition-colors hover:bg-cyan-950/90 cursor-pointer group"
+        title={isOpen ? 'Collapse Panel (Slide Left)' : 'Expand Panel (Slide Right)'}
+      >
+        <div className="transition-transform duration-200">
+          {isOpen ? (
+            <ChevronLeft size={13} className="group-hover:-translate-x-0.5 transition-transform" />
+          ) : (
+            <ChevronRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
+          )}
+        </div>
+      </button>
+
+      {/* Internal scrollable content - constant width, no squishing, no reflow */}
+      <div className="w-[260px] h-full flex flex-col overflow-y-auto overflow-x-hidden">
       {/* 1. Header Block */}
       <div className="p-3 border-b border-blue-900/40 flex items-center gap-3">
         <div className="w-10 h-10 rounded-full bg-slate-700 border border-cyan-500/30 flex items-center justify-center shrink-0">
@@ -250,7 +291,8 @@ const Sidebar = ({ activeTab, setActiveTab, stats, loading, error, lastFetchedAt
           SUPABASE + NASA FIRMS + ESA WORLDCOVER :: {rtIsLive ? 'LIVE' : rtLabel.toUpperCase()}
         </div>
       </div>
-    </div>
+      </div>
+    </aside>
   );
 };
 

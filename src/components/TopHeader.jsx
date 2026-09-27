@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Search, AlertTriangle, FileDown, Shield, Clock, Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Search, AlertTriangle, FileDown, Loader2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -33,34 +33,43 @@ const TopHeader = ({ anomalies, stats, onSearchLocation, onSelectAnomaly }) => {
 
   // Two search modes based on what's typed:
   // - Looks like an ID (letters/digits/dashes, e.g. "TH-3816", "3816", "th-3")
-  //   -> search hotspot IDs in the live anomalies list (instant, case-insensitive,
-  //   no network call).
+  //   -> search hotspot IDs in the live anomalies list (instant, case-insensitive, no network call).
   // - Anything else (3+ chars) -> debounced place search via Nominatim.
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
     const trimmed = query.trim();
+    if (!trimmed) {
+      debounceRef.current = setTimeout(() => {
+        setSuggestions([]);
+        setShowDropdown(false);
+        setSearching(false);
+      }, 0);
+      return () => clearTimeout(debounceRef.current);
+    }
+
     const isIdLike = trimmed.length > 0 && /^[A-Za-z0-9-]+$/.test(trimmed) && /\d/.test(trimmed);
 
-    if (isIdLike) {
-      const needle = trimmed.toLowerCase();
-      const matches = (anomalies || [])
-        .filter((a) => String(a.id).toLowerCase().includes(needle))
-        .slice(0, 6)
-        .map((a) => ({ type: 'anomaly', anomaly: a }));
-      setSuggestions(matches);
-      setShowDropdown(matches.length > 0);
-      setSearching(false);
-      return;
-    }
-
-    if (trimmed.length < 3) {
-      setSuggestions([]);
-      setShowDropdown(false);
-      return;
-    }
-
     debounceRef.current = setTimeout(async () => {
+      if (isIdLike) {
+        const needle = trimmed.toLowerCase();
+        const matches = (anomalies || [])
+          .filter((a) => String(a.id).toLowerCase().includes(needle))
+          .slice(0, 6)
+          .map((a) => ({ type: 'anomaly', anomaly: a }));
+        setSuggestions(matches);
+        setShowDropdown(matches.length > 0);
+        setSearching(false);
+        return;
+      }
+
+      if (trimmed.length < 3) {
+        setSuggestions([]);
+        setShowDropdown(false);
+        setSearching(false);
+        return;
+      }
+
       setSearching(true);
       try {
         const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
@@ -76,7 +85,7 @@ const TopHeader = ({ anomalies, stats, onSearchLocation, onSelectAnomaly }) => {
       } finally {
         setSearching(false);
       }
-    }, 400);
+    }, isIdLike ? 50 : 350);
 
     return () => clearTimeout(debounceRef.current);
   }, [query, anomalies]);

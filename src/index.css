@@ -275,12 +275,6 @@ input[type="checkbox"]:checked::after {
   border: none !important;
 }
 
-/* Ensure GlobeView hover popups do not intercept mouse clicks on markers */
-.pyro-globe-popup,
-.pyro-globe-popup .maplibregl-popup-content,
-.pyro-globe-popup .maplibregl-popup-tip {
-  pointer-events: none !important;
-}
 
 /* ── WRI Power Plant Popup — Amber-themed ── */
 .wri-popup .leaflet-popup-content-wrapper {

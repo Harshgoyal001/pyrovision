@@ -1,5 +1,4 @@
-import React from 'react';
-import { Layers, Activity, AlertTriangle, Globe, Map, CheckSquare, Eye, Sliders, ChevronDown, CheckCircle } from 'lucide-react';
+import { Layers, Activity, AlertTriangle, Globe, CheckSquare, Eye, ChevronDown, CheckCircle } from 'lucide-react';
 
 export default function LayersView({ stats = {}, layers = {}, toggleLayer = () => {} }) {
   const engagedCount = Object.values(layers).filter(Boolean).length;

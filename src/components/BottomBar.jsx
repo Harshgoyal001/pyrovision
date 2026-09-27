@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Shield, Radio, Lock, Wifi } from 'lucide-react';
 
-export default function BottomBar({ stats, anomalies, realtimeStatus, lastFetchedAt }) {
+export default function BottomBar({ anomalies, realtimeStatus, lastFetchedAt }) {
   const [currentTime, setCurrentTime] = useState(
     new Date().toLocaleTimeString('en-IN', { hour12: false, timeZone: 'Asia/Kolkata' }) + ' IST'
   );

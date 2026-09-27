@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { AlertTriangle, Download, Crosshair, CheckSquare, Square, ChevronDown } from 'lucide-react';
 
 export default function DossierPanel({ anomalies = [], selectedTarget, setSelectedTarget, stats = {}, layers = {}, toggleLayer = () => {} }) {
@@ -251,7 +251,7 @@ export default function DossierPanel({ anomalies = [], selectedTarget, setSelect
 
         {/* Dynamic 5-category stacked progress bar from PPT */}
         <div className="w-full h-1.5 bg-slate-800 rounded-sm overflow-hidden flex my-2 border border-slate-700/50">
-          <div style={{ width: `${wildfirePct}%` }} className="bg-[#FF003C] h-full transition-all" title={`Wild Fire (${wildfirePct}%)`} />
+          <div style={{ width: `${wildfirePct}%` }} className="bg-[#15803D] h-full transition-all" title={`Wild Fire (${wildfirePct}%)`} />
           <div style={{ width: `${industrialPct}%` }} className="bg-[#F59E0B] h-full transition-all" title={`Industrial Fire (${industrialPct}%)`} />
           <div style={{ width: `${flarePct}%` }} className="bg-[#00F0FF] h-full transition-all" title={`Gas Flare (${flarePct}%)`} />
           <div style={{ width: `${agriculturePct}%` }} className="bg-[#22C55E] h-full transition-all" title={`Agriculture Fire (${agriculturePct}%)`} />
@@ -261,7 +261,7 @@ export default function DossierPanel({ anomalies = [], selectedTarget, setSelect
         <div className="space-y-1.5 mt-2.5">
           <div className="flex items-center justify-between text-[10px]">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-[#FF003C] shrink-0" />
+              <div className="w-2 h-2 bg-[#15803D] shrink-0" />
               <span className="text-slate-300">Wild Fire</span>
             </div>
             <span className="text-slate-300 font-mono">{wildfireCount} ({wildfirePct}%)</span>
