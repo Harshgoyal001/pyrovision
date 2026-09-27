@@ -7,7 +7,8 @@ import { Crosshair, Layers, Radio } from 'lucide-react';
 import { CATEGORY_COLORS } from '../constants/categories';
 
 // Basemaps - Premium MapTiler Dataviz Dark
-const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_API_KEY || '7S7lUtWnfER9El1v16yE';
+const RAW_MAPTILER_KEY = (import.meta.env.VITE_MAPTILER_API_KEY || '').trim();
+const MAPTILER_KEY = /^[A-Za-z0-9]{20}$/.test(RAW_MAPTILER_KEY) ? RAW_MAPTILER_KEY : '7S7lUtWnfER9El1v16yE';
 const DARK_MATTER_URL = `https://api.maptiler.com/maps/dataviz-dark/256/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`;
 const SATELLITE_TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 const SATELLITE_LABELS_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}';

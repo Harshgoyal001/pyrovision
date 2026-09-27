@@ -7,6 +7,8 @@ import StatisticsView from './components/StatisticsView';
 import LayersView from './components/LayersView';
 import ThermalHuntView from './components/ThermalHuntView';
 import { useThermalAnomalies } from './hooks/useThermalAnomalies';
+import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -147,6 +149,8 @@ export default function App() {
           </main>
         </div>
         <BottomBar anomalies={anomalies} realtimeStatus={realtimeStatus} lastFetchedAt={lastFetchedAt} />
+        <Analytics />
+        <SpeedInsights />
       </div>
     </ErrorBoundary>
   );
